@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "151340523557",
+    "project_id": "shadowcv",
+    "storage_bucket": "shadowcv.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:151340523557:android:3044b2ec702fdfef8ddfcc",
+        "android_client_info": {
+          "package_name": "com.example.shadowcv"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJyB7fZ8Y7s4kCr09IH_U7ABwQthzh9_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
