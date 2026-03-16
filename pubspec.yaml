@@ -1,7 +1,6 @@
 name: shadowcv
-description: "A new Flutter project."
+description: "ShadowCV - Professional CV Analysis"
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -11,10 +10,29 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+
+  # Firebase
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   cloud_firestore: ^6.1.2
   firebase_storage: ^13.0.6
+
+  # Auth
+  google_sign_in: ^7.2.0
+  flutter_facebook_auth: ^7.1.5
+
+  # Storage / Prefs
+  shared_preferences: ^2.5.4
+
+  # NEU: PDF auswählen & lesen
+  file_picker: ^8.1.2
+  syncfusion_flutter_pdf: ^27.1.48   # PDF Text-Extraktion (on-device, kostenlos)
+
+  # NEU: HTTP für Claude API
+  http: ^1.2.2
+
+  # NEU: UUID für eindeutige IDs
+  uuid: ^4.4.2
 
 dev_dependencies:
   flutter_test:
@@ -23,16 +41,15 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
   fonts:
-    - family: Jersey10
+    - family: Boldo
       fonts:
-        - asset: assets/fonts/Jersey10-Regular.ttf
-    - family: Federant
-      fonts:
-        - asset: assets/fonts/Federant-Regular.ttf
-
+        - asset: assets/fonts/SpaceGrotesk-VariableFont_wght.ttf
+          weight: 400
+        - asset: assets/fonts/static/SpaceGrotesk-Bold.ttf
+          weight: 700
   assets:
     - assets/images/ShadowCV-Logo.png
     - assets/images/google1.png
     - assets/images/facebook.png
+    - assets/images/NewLogo.png
