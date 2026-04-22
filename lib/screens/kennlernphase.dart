@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shadowcv/services/translation_service.dart'; // <-- IMPORT
 import 'home_screen.dart';
 
 class Kennlernphase extends StatefulWidget {
@@ -22,7 +23,8 @@ class _KennlernphaseState extends State<Kennlernphase>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  final List<String> goals = [
+  // Ziele werden direkt übersetzt angezeigt
+  final List<String> goalsKeys = [
     'Find a new job',
     'Improve my CV',
     'Career change',
@@ -34,7 +36,7 @@ class _KennlernphaseState extends State<Kennlernphase>
   void initState() {
     super.initState();
     _animController = AnimationController(
-      duration: Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(
@@ -42,7 +44,7 @@ class _KennlernphaseState extends State<Kennlernphase>
       end: 1.0,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _slideAnimation = Tween<Offset>(
-      begin: Offset(0.3, 0),
+      begin: const Offset(0.3, 0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _animController.forward();
@@ -95,20 +97,21 @@ class _KennlernphaseState extends State<Kennlernphase>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: Colors.black,
-        margin: EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        backgroundColor: Colors.redAccent,
+        margin: const EdgeInsets.all(16),
         content: Row(
           children: [
-            Icon(Icons.warning_rounded, color: Colors.deepPurpleAccent),
-            SizedBox(width: 12),
+            const Icon(Icons.error_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   fontFamily: 'Boldo',
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -121,37 +124,33 @@ class _KennlernphaseState extends State<Kennlernphase>
   Future<void> _saveUserData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        _showError('Not logged in');
-        return;
-      }
+      if (user == null) return;
 
-      print('🔵 Saving data for user: ${user.uid}'); // Debug
-
+      // WICHTIG: Die Sprache in Firestore initial setzen!
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'name': nameController.text.trim(),
         'jobTitle': jobController.text.trim(),
-        'goal': selectedGoal,
+        'goal': selectedGoal, // Wird auf Englisch gespeichert (besser für KI)
+        'language': AppTranslation
+            .currentLang, // <-- App weiß sofort, welche Sprache wir nutzen
         'email': user.email,
         'createdAt': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
       });
 
-      print('✅ Data saved successfully!'); // Debug
-
       Navigator.pushAndRemoveUntil(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => HomeScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const HomeScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
-          transitionDuration: Duration(milliseconds: 500),
+          transitionDuration: const Duration(milliseconds: 500),
         ),
         (route) => false,
       );
     } catch (e) {
-      print('❌ Save Error: $e'); // Debug - zeigt genauen Fehler
       _showError('Failed to save data: $e');
     }
   }
@@ -160,7 +159,7 @@ class _KennlernphaseState extends State<Kennlernphase>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -170,15 +169,14 @@ class _KennlernphaseState extends State<Kennlernphase>
         child: SafeArea(
           child: Column(
             children: [
-              // Back Button
               if (_currentStep > 0)
                 Padding(
-                  padding: EdgeInsets.only(left: 20, top: 16),
+                  padding: const EdgeInsets.only(left: 20, top: 16),
                   child: Row(
                     children: [
                       IconButton(
                         onPressed: _previousStep,
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: Colors.white,
                           size: 28,
@@ -188,19 +186,18 @@ class _KennlernphaseState extends State<Kennlernphase>
                   ),
                 )
               else
-                SizedBox(height: 60),
+                const SizedBox(height: 60),
 
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.all(28),
+                  padding: const EdgeInsets.all(28),
                   child: Column(
                     children: [
-                      // Progress Indicator
                       Row(
                         children: List.generate(4, (index) {
                           return Expanded(
                             child: Container(
-                              margin: EdgeInsets.symmetric(horizontal: 4),
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
                               height: 4,
                               decoration: BoxDecoration(
                                 color: index <= _currentStep
@@ -212,10 +209,7 @@ class _KennlernphaseState extends State<Kennlernphase>
                           );
                         }),
                       ),
-
-                      SizedBox(height: 60),
-
-                      // Content with Animation
+                      const SizedBox(height: 60),
                       Expanded(
                         child: FadeTransition(
                           opacity: _fadeAnimation,
@@ -225,13 +219,9 @@ class _KennlernphaseState extends State<Kennlernphase>
                           ),
                         ),
                       ),
-
-                      SizedBox(height: 20),
-
-                      // Next Button
+                      const SizedBox(height: 20),
                       _buildNextButton(),
-
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -258,33 +248,36 @@ class _KennlernphaseState extends State<Kennlernphase>
     }
   }
 
-  // Step 1: Name
   Widget _buildNameStep() {
     return SingleChildScrollView(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurpleAccent.withOpacity(0.4),
                   blurRadius: 30,
-                  offset: Offset(0, 15),
+                  offset: const Offset(0, 15),
                 ),
               ],
             ),
-            child: Icon(Icons.person_rounded, size: 50, color: Colors.white),
+            child: const Icon(
+              Icons.person_rounded,
+              size: 50,
+              color: Colors.white,
+            ),
           ),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
           Text(
-            "What's your name?",
-            style: TextStyle(
+            AppTranslation.t("What's your name?"),
+            style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w900,
               fontFamily: 'Boldo',
@@ -292,24 +285,24 @@ class _KennlernphaseState extends State<Kennlernphase>
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
-            'Let us get to know you better',
-            style: TextStyle(
+            AppTranslation.t('Let us get to know you better'),
+            style: const TextStyle(
               fontSize: 16,
               fontFamily: 'Boldo',
               color: Colors.white60,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 50),
+          const SizedBox(height: 50),
           Container(
             decoration: BoxDecoration(
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurpleAccent.withOpacity(0.1),
                   blurRadius: 20,
-                  offset: Offset(0, 10),
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
@@ -317,7 +310,7 @@ class _KennlernphaseState extends State<Kennlernphase>
               controller: nameController,
               textAlign: TextAlign.center,
               cursorColor: Colors.deepPurpleAccent,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'Boldo',
@@ -326,20 +319,24 @@ class _KennlernphaseState extends State<Kennlernphase>
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.1),
-                hintText: 'Enter your name',
-                hintStyle: TextStyle(color: Colors.white30, fontSize: 18),
+                hintText: AppTranslation.t('Enter your name'),
+                hintStyle: const TextStyle(
+                  color: Colors.white30,
+                  fontSize: 18,
+                  fontFamily: 'Boldo',
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide(
+                  borderSide: const BorderSide(
                     color: Colors.deepPurpleAccent,
                     width: 2,
                   ),
                 ),
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 20,
                 ),
@@ -351,33 +348,36 @@ class _KennlernphaseState extends State<Kennlernphase>
     );
   }
 
-  // Step 2: Job
   Widget _buildJobStep() {
     return SingleChildScrollView(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurpleAccent.withOpacity(0.4),
                   blurRadius: 30,
-                  offset: Offset(0, 15),
+                  offset: const Offset(0, 15),
                 ),
               ],
             ),
-            child: Icon(Icons.work_rounded, size: 50, color: Colors.white),
+            child: const Icon(
+              Icons.work_rounded,
+              size: 50,
+              color: Colors.white,
+            ),
           ),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
           Text(
-            "What's your job title?",
-            style: TextStyle(
+            AppTranslation.t("What's your job title?"),
+            style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w900,
               fontFamily: 'Boldo',
@@ -385,24 +385,24 @@ class _KennlernphaseState extends State<Kennlernphase>
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
-            'This helps us personalize your experience',
-            style: TextStyle(
+            AppTranslation.t('This helps us personalize your experience'),
+            style: const TextStyle(
               fontSize: 16,
               fontFamily: 'Boldo',
               color: Colors.white60,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 50),
+          const SizedBox(height: 50),
           Container(
             decoration: BoxDecoration(
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurpleAccent.withOpacity(0.1),
                   blurRadius: 20,
-                  offset: Offset(0, 10),
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
@@ -410,7 +410,7 @@ class _KennlernphaseState extends State<Kennlernphase>
               controller: jobController,
               textAlign: TextAlign.center,
               cursorColor: Colors.deepPurpleAccent,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'Boldo',
@@ -419,20 +419,24 @@ class _KennlernphaseState extends State<Kennlernphase>
               decoration: InputDecoration(
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.1),
-                hintText: 'e.g. Software Developer',
-                hintStyle: TextStyle(color: Colors.white30, fontSize: 18),
+                hintText: AppTranslation.t('e.g. Software Developer'),
+                hintStyle: const TextStyle(
+                  color: Colors.white30,
+                  fontSize: 18,
+                  fontFamily: 'Boldo',
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide(
+                  borderSide: const BorderSide(
                     color: Colors.deepPurpleAccent,
                     width: 2,
                   ),
                 ),
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 20,
                 ),
@@ -444,37 +448,36 @@ class _KennlernphaseState extends State<Kennlernphase>
     );
   }
 
-  // Step 3: Goal
   Widget _buildGoalStep() {
     return SingleChildScrollView(
       child: Column(
         children: [
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
           Container(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurpleAccent.withOpacity(0.4),
                   blurRadius: 30,
-                  offset: Offset(0, 15),
+                  offset: const Offset(0, 15),
                 ),
               ],
             ),
-            child: Icon(
+            child: const Icon(
               Icons.rocket_launch_rounded,
               size: 50,
               color: Colors.white,
             ),
           ),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
           Text(
-            "What's your goal?",
-            style: TextStyle(
+            AppTranslation.t("What's your goal?"),
+            style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w900,
               fontFamily: 'Boldo',
@@ -482,33 +485,32 @@ class _KennlernphaseState extends State<Kennlernphase>
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
-            'Choose what you want to achieve',
-            style: TextStyle(
+            AppTranslation.t('Choose what you want to achieve'),
+            style: const TextStyle(
               fontSize: 16,
               fontFamily: 'Boldo',
               color: Colors.white60,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 40),
-          ...goals.map((goal) {
-            final isSelected = selectedGoal == goal;
+          const SizedBox(height: 40),
+          ...goalsKeys.map((goalKey) {
+            final isSelected = selectedGoal == goalKey;
             return Padding(
-              padding: EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 16),
               child: InkWell(
-                onTap: () {
-                  setState(() {
-                    selectedGoal = goal;
-                  });
-                },
+                onTap: () => setState(() => selectedGoal = goalKey),
                 child: AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
                   decoration: BoxDecoration(
                     gradient: isSelected
-                        ? LinearGradient(
+                        ? const LinearGradient(
                             colors: [
                               Colors.deepPurpleAccent,
                               Colors.purpleAccent,
@@ -528,7 +530,7 @@ class _KennlernphaseState extends State<Kennlernphase>
                             BoxShadow(
                               color: Colors.deepPurpleAccent.withOpacity(0.4),
                               blurRadius: 20,
-                              offset: Offset(0, 10),
+                              offset: const Offset(0, 10),
                             ),
                           ]
                         : null,
@@ -540,9 +542,9 @@ class _KennlernphaseState extends State<Kennlernphase>
                         color: Colors.white,
                         size: 24,
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Text(
-                        goal,
+                        AppTranslation.t(goalKey),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: isSelected
@@ -558,47 +560,46 @@ class _KennlernphaseState extends State<Kennlernphase>
               ),
             );
           }).toList(),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  // Step 4: Motivation
   Widget _buildMotivationStep() {
     return SingleChildScrollView(
       child: Column(
         children: [
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
           Container(
-            padding: EdgeInsets.all(30),
+            padding: const EdgeInsets.all(30),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
               ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.deepPurpleAccent.withOpacity(0.5),
                   blurRadius: 40,
-                  offset: Offset(0, 20),
+                  offset: const Offset(0, 20),
                 ),
               ],
             ),
-            child: Icon(
+            child: const Icon(
               Icons.emoji_events_rounded,
               size: 60,
               color: Colors.white,
             ),
           ),
-          SizedBox(height: 50),
+          const SizedBox(height: 50),
           ShaderMask(
             shaderCallback: (bounds) => LinearGradient(
               colors: [Colors.white, Colors.deepPurpleAccent.shade100],
             ).createShader(bounds),
             child: Text(
-              "You're all set, ${nameController.text}!",
-              style: TextStyle(
+              "${AppTranslation.t("You're all set,")} ${nameController.text}!",
+              style: const TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.w900,
                 fontFamily: 'Boldo',
@@ -607,12 +608,14 @@ class _KennlernphaseState extends State<Kennlernphase>
               textAlign: TextAlign.center,
             ),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
-              "Together with ShadowCV, you'll uncover hidden opportunities and land your dream job. Let's make it happen! 🚀",
-              style: TextStyle(
+              AppTranslation.t(
+                "Together with ShadowCV, you'll uncover hidden opportunities and land your dream job. Let's make it happen! 🚀",
+              ),
+              style: const TextStyle(
                 fontSize: 18,
                 fontFamily: 'Boldo',
                 color: Colors.white70,
@@ -621,9 +624,9 @@ class _KennlernphaseState extends State<Kennlernphase>
               textAlign: TextAlign.center,
             ),
           ),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
           Container(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.05),
               borderRadius: BorderRadius.circular(20),
@@ -636,21 +639,25 @@ class _KennlernphaseState extends State<Kennlernphase>
               children: [
                 _buildInfoRow(
                   Icons.person_rounded,
-                  'Name',
+                  AppTranslation.t('Name'),
                   nameController.text,
                 ),
-                Divider(color: Colors.white10, height: 32),
-                _buildInfoRow(Icons.work_rounded, 'Job', jobController.text),
-                Divider(color: Colors.white10, height: 32),
+                const Divider(color: Colors.white10, height: 32),
+                _buildInfoRow(
+                  Icons.work_rounded,
+                  AppTranslation.t('Job'),
+                  jobController.text,
+                ),
+                const Divider(color: Colors.white10, height: 32),
                 _buildInfoRow(
                   Icons.rocket_launch_rounded,
-                  'Goal',
-                  selectedGoal,
+                  AppTranslation.t('Goal'),
+                  AppTranslation.t(selectedGoal),
                 ),
               ],
             ),
           ),
-          SizedBox(height: 40),
+          const SizedBox(height: 40),
         ],
       ),
     );
@@ -660,7 +667,7 @@ class _KennlernphaseState extends State<Kennlernphase>
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.all(10),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -672,22 +679,22 @@ class _KennlernphaseState extends State<Kennlernphase>
           ),
           child: Icon(icon, color: Colors.deepPurpleAccent, size: 20),
         ),
-        SizedBox(width: 16),
+        const SizedBox(width: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
                 color: Colors.white60,
                 fontFamily: 'Boldo',
               ),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               value,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
@@ -705,7 +712,7 @@ class _KennlernphaseState extends State<Kennlernphase>
       width: double.infinity,
       height: 60,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
         ),
         borderRadius: BorderRadius.circular(18),
@@ -713,7 +720,7 @@ class _KennlernphaseState extends State<Kennlernphase>
           BoxShadow(
             color: Colors.deepPurpleAccent.withOpacity(0.5),
             blurRadius: 25,
-            offset: Offset(0, 12),
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -730,8 +737,10 @@ class _KennlernphaseState extends State<Kennlernphase>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _currentStep == 3 ? "Let's Go!" : 'Continue',
-              style: TextStyle(
+              _currentStep == 3
+                  ? AppTranslation.t("Let's Go!")
+                  : AppTranslation.t('Continue'),
+              style: const TextStyle(
                 fontSize: 18,
                 color: Colors.white,
                 fontFamily: 'Boldo',
@@ -739,7 +748,7 @@ class _KennlernphaseState extends State<Kennlernphase>
                 letterSpacing: 0.5,
               ),
             ),
-            SizedBox(width: 10),
+            const SizedBox(width: 10),
             Icon(
               _currentStep == 3
                   ? Icons.rocket_launch_rounded

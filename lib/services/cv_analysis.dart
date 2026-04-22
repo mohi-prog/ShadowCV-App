@@ -1,26 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ─── Nutzer-Tier ─────────────────────────────────────────────────────────────
-enum UserTier { free, premium, career }
-
-extension UserTierExtension on UserTier {
-  String get displayName {
-    switch (this) {
-      case UserTier.free:
-        return 'Free';
-      case UserTier.premium:
-        return 'Premium';
-      case UserTier.career:
-        return 'Career';
-    }
-  }
-
-  bool get canUseAIChat => this != UserTier.free;
-  bool get canOptimizeCV => this != UserTier.free;
-  bool get canUseCoverLetter => this == UserTier.career;
-  bool get hasUnlimitedAnalyses => this != UserTier.free;
-}
-
 // ─── Einzelnes Problem im CV ──────────────────────────────────────────────────
 class CVIssue {
   final String what; // ❌ Was ist falsch

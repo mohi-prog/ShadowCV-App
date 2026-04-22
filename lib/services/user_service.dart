@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shadowcv/models/user_profile.dart'
+    show UserTier, UserTierExtension;
 import 'cv_analysis.dart';
 import 'app_config.dart';
 

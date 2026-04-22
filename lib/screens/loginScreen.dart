@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'google_auth_service.dart';
+import 'package:shadowcv/main.dart';
+import 'package:shadowcv/services/translation_service.dart'; // <-- IMPORT
+import '../services/google_auth_service.dart';
 import 'sign_up_screen.dart';
-import 'kennlernphase.dart';
 import 'forgot_password_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class loginScreen extends StatefulWidget {
   const loginScreen({super.key});
@@ -28,7 +30,7 @@ class _loginScreenState extends State<loginScreen>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
     _fadeAnimation = Tween<double>(
@@ -51,7 +53,7 @@ class _loginScreenState extends State<loginScreen>
 
     if (EmailController.text.isEmpty || PasswordController.text.isEmpty) {
       setState(() => isLoadingEmail = false);
-      _showErrorSnackBar('Please fill in all fields');
+      _showErrorSnackBar(AppTranslation.t('Please fill in all fields'));
       return;
     }
 
@@ -60,22 +62,30 @@ class _loginScreenState extends State<loginScreen>
         email: EmailController.text.trim(),
         password: PasswordController.text.trim(),
       );
+
+      // --- NEU: Überschreibe die alte Firestore-Sprache mit der neu gewählten! ---
+      final user = _auth.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'language': AppTranslation.currentLang,
+        }, SetOptions(merge: true));
+      }
+      // --------------------------------------------------------------------------
+
       setState(() => isLoadingEmail = false);
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => Kennlernphase()),
+        MaterialPageRoute(builder: (context) => const AuthWrapper()),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {
       setState(() => isLoadingEmail = false);
       String message = e.code == 'user-not-found'
-          ? 'No account found with this email'
+          ? AppTranslation.t('No account found')
           : e.code == 'wrong-password'
-          ? 'Incorrect password'
-          : e.code == 'invalid-credential'
-          ? 'Account created with Google. Use Google Sign-In'
-          : 'Login failed';
+          ? AppTranslation.t('Incorrect password')
+          : AppTranslation.t('Login failed');
       _showErrorSnackBar(message);
     }
   }
@@ -84,30 +94,19 @@ class _loginScreenState extends State<loginScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: Colors.black,
-        margin: EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        backgroundColor: Colors.redAccent,
+        margin: const EdgeInsets.all(16),
         content: Row(
           children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.deepPurpleAccent.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.warning_rounded,
-                color: Colors.deepPurpleAccent,
-                size: 20,
-              ),
-            ),
-            SizedBox(width: 12),
+            const Icon(Icons.error_rounded, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 message,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: Colors.white,
                   fontFamily: 'Boldo',
                 ),
@@ -123,7 +122,7 @@ class _loginScreenState extends State<loginScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -135,14 +134,15 @@ class _loginScreenState extends State<loginScreen>
             opacity: _fadeAnimation,
             child: SingleChildScrollView(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 20,
+                ),
                 child: Column(
                   children: [
-                    SizedBox(height: 40),
-
-                    // Logo Section
+                    const SizedBox(height: 40),
                     Container(
-                      padding: EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(30),
@@ -158,7 +158,7 @@ class _loginScreenState extends State<loginScreen>
                             width: 150,
                             height: 150,
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           ShaderMask(
                             shaderCallback: (bounds) => LinearGradient(
                               colors: [
@@ -166,7 +166,7 @@ class _loginScreenState extends State<loginScreen>
                                 Colors.deepPurpleAccent.shade100,
                               ],
                             ).createShader(bounds),
-                            child: Text(
+                            child: const Text(
                               'ShadowCV',
                               style: TextStyle(
                                 fontSize: 32,
@@ -179,12 +179,9 @@ class _loginScreenState extends State<loginScreen>
                         ],
                       ),
                     ),
-
-                    SizedBox(height: 40),
-
-                    // White Form Card
+                    const SizedBox(height: 40),
                     Container(
-                      padding: EdgeInsets.all(28),
+                      padding: const EdgeInsets.all(28),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(28),
@@ -192,7 +189,7 @@ class _loginScreenState extends State<loginScreen>
                           BoxShadow(
                             color: Colors.deepPurpleAccent.withOpacity(0.3),
                             blurRadius: 30,
-                            offset: Offset(0, 15),
+                            offset: const Offset(0, 15),
                           ),
                         ],
                       ),
@@ -200,40 +197,34 @@ class _loginScreenState extends State<loginScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Welcome Back',
-                            style: TextStyle(
+                            AppTranslation.t('Welcome Back'),
+                            style: const TextStyle(
                               fontSize: 28,
                               color: Colors.black,
                               fontFamily: 'Boldo',
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
-                            'Sign in to continue',
+                            AppTranslation.t('Sign in to continue'),
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
                               fontFamily: 'Boldo',
                             ),
                           ),
-
-                          SizedBox(height: 32),
-
-                          // Email Field
+                          const SizedBox(height: 32),
                           _buildTextField(
                             controller: EmailController,
-                            label: 'Email',
+                            label: AppTranslation.t('Email'),
                             icon: Icons.email_rounded,
                             keyboardType: TextInputType.emailAddress,
                           ),
-
-                          SizedBox(height: 20),
-
-                          // Password Field
+                          const SizedBox(height: 20),
                           _buildTextField(
                             controller: PasswordController,
-                            label: 'Password',
+                            label: AppTranslation.t('Password'),
                             icon: Icons.lock_rounded,
                             obscureText: obscurePassword,
                             suffixIcon: IconButton(
@@ -249,25 +240,20 @@ class _loginScreenState extends State<loginScreen>
                               ),
                             ),
                           ),
-
-                          SizedBox(height: 16),
-
-                          // Forgot Password
+                          const SizedBox(height: 16),
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        ForgotPasswordScreen(),
-                                  ),
-                                );
-                              },
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ForgotPasswordScreen(),
+                                ),
+                              ),
                               child: Text(
-                                'Forgot Password?',
-                                style: TextStyle(
+                                AppTranslation.t('Forgot Password?'),
+                                style: const TextStyle(
                                   color: Colors.deepPurpleAccent,
                                   fontFamily: 'Boldo',
                                   fontWeight: FontWeight.w600,
@@ -275,15 +261,12 @@ class _loginScreenState extends State<loginScreen>
                               ),
                             ),
                           ),
-
-                          SizedBox(height: 20),
-
-                          // Login Button
+                          const SizedBox(height: 20),
                           Container(
                             width: double.infinity,
                             height: 58,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
+                              gradient: const LinearGradient(
                                 colors: [
                                   Colors.deepPurpleAccent,
                                   Colors.purpleAccent,
@@ -296,7 +279,7 @@ class _loginScreenState extends State<loginScreen>
                                     0.4,
                                   ),
                                   blurRadius: 20,
-                                  offset: Offset(0, 10),
+                                  offset: const Offset(0, 10),
                                 ),
                               ],
                             ),
@@ -312,11 +295,11 @@ class _loginScreenState extends State<loginScreen>
                                 ),
                               ),
                               child: isLoadingEmail
-                                  ? SizedBox(
+                                  ? const SizedBox(
                                       width: 24,
                                       height: 24,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
+                                        strokeWidth: 2,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
                                               Colors.white,
@@ -324,8 +307,8 @@ class _loginScreenState extends State<loginScreen>
                                       ),
                                     )
                                   : Text(
-                                      'Login',
-                                      style: TextStyle(
+                                      AppTranslation.t('Login'),
+                                      style: const TextStyle(
                                         fontSize: 17,
                                         color: Colors.white,
                                         fontFamily: 'Boldo',
@@ -334,17 +317,16 @@ class _loginScreenState extends State<loginScreen>
                                     ),
                             ),
                           ),
-
-                          SizedBox(height: 24),
-
-                          // Divider
+                          const SizedBox(height: 24),
                           Row(
                             children: [
                               Expanded(child: Divider(color: Colors.grey[300])),
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                                 child: Text(
-                                  'or',
+                                  AppTranslation.t('or'),
                                   style: TextStyle(
                                     color: Colors.grey[600],
                                     fontFamily: 'Boldo',
@@ -354,10 +336,7 @@ class _loginScreenState extends State<loginScreen>
                               Expanded(child: Divider(color: Colors.grey[300])),
                             ],
                           ),
-
-                          SizedBox(height: 24),
-
-                          // Google Login
+                          const SizedBox(height: 24),
                           InkWell(
                             onTap: isLoadingGoogle
                                 ? null
@@ -365,21 +344,37 @@ class _loginScreenState extends State<loginScreen>
                                     setState(() => isLoadingGoogle = true);
                                     final user =
                                         await GoogleAuthService.handleGoogleSignIn();
+
+                                    // --- NEU: Sprache auch bei Google-Login überschreiben ---
+                                    if (user != null) {
+                                      await FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(user.uid)
+                                          .set({
+                                            'language':
+                                                AppTranslation.currentLang,
+                                          }, SetOptions(merge: true));
+                                    }
+                                    // --------------------------------------------------------
+
                                     setState(() => isLoadingGoogle = false);
                                     if (user != null) {
                                       Navigator.pushAndRemoveUntil(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => Kennlernphase(),
+                                          builder: (context) =>
+                                              const AuthWrapper(),
                                         ),
                                         (route) => false,
                                       );
                                     } else {
-                                      _showErrorSnackBar('Google login failed');
+                                      _showErrorSnackBar(
+                                        AppTranslation.t('Google login failed'),
+                                      );
                                     }
                                   },
                             child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                               decoration: BoxDecoration(
                                 border: Border.all(
                                   color: Colors.grey[300]!,
@@ -391,11 +386,11 @@ class _loginScreenState extends State<loginScreen>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   if (isLoadingGoogle)
-                                    SizedBox(
+                                    const SizedBox(
                                       width: 24,
                                       height: 24,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
+                                        strokeWidth: 2,
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
                                               Colors.deepPurpleAccent,
@@ -408,10 +403,10 @@ class _loginScreenState extends State<loginScreen>
                                       width: 24,
                                       height: 24,
                                     ),
-                                    SizedBox(width: 12),
+                                    const SizedBox(width: 12),
                                     Text(
-                                      'Continue with Google',
-                                      style: TextStyle(
+                                      AppTranslation.t('Continue with Google'),
+                                      style: const TextStyle(
                                         fontSize: 15,
                                         fontFamily: 'Boldo',
                                         fontWeight: FontWeight.w600,
@@ -426,52 +421,28 @@ class _loginScreenState extends State<loginScreen>
                         ],
                       ),
                     ),
-
-                    SizedBox(height: 28),
-
-                    // Sign Up Link
+                    const SizedBox(height: 28),
                     InkWell(
                       onTap: () {
                         Navigator.push(
                           context,
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) =>
-                                    SignUpScreen(),
-                            transitionsBuilder:
-                                (
-                                  context,
-                                  animation,
-                                  secondaryAnimation,
-                                  child,
-                                ) {
-                                  const begin = Offset(1.0, 0.0);
-                                  const end = Offset.zero;
-                                  const curve = Curves.easeInOut;
-                                  var tween = Tween(
-                                    begin: begin,
-                                    end: end,
-                                  ).chain(CurveTween(curve: curve));
-                                  return SlideTransition(
-                                    position: animation.drive(tween),
-                                    child: child,
-                                  );
-                                },
+                          MaterialPageRoute(
+                            builder: (context) => const SignUpScreen(),
                           ),
                         );
                       },
                       child: RichText(
                         text: TextSpan(
-                          text: "Don't have an account? ",
-                          style: TextStyle(
+                          text: AppTranslation.t("Don't have an account? "),
+                          style: const TextStyle(
                             fontSize: 14,
                             color: Colors.white60,
                             fontFamily: 'Boldo',
                           ),
                           children: [
                             TextSpan(
-                              text: 'Sign Up',
-                              style: TextStyle(
+                              text: AppTranslation.t('Sign Up'),
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.deepPurpleAccent,
                                 fontFamily: 'Boldo',
@@ -483,8 +454,7 @@ class _loginScreenState extends State<loginScreen>
                         ),
                       ),
                     ),
-
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -508,7 +478,7 @@ class _loginScreenState extends State<loginScreen>
       obscureText: obscureText,
       keyboardType: keyboardType,
       cursorColor: Colors.deepPurpleAccent,
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 15,
         fontFamily: 'Boldo',
         fontWeight: FontWeight.w600,
@@ -517,8 +487,8 @@ class _loginScreenState extends State<loginScreen>
         filled: true,
         fillColor: Colors.grey[50],
         prefixIcon: Container(
-          margin: EdgeInsets.all(12),
-          padding: EdgeInsets.all(10),
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -532,16 +502,26 @@ class _loginScreenState extends State<loginScreen>
         ),
         suffixIcon: suffixIcon,
         hintText: label,
-        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+        hintStyle: TextStyle(
+          color: Colors.grey[400],
+          fontSize: 14,
+          fontFamily: 'Boldo',
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.deepPurpleAccent, width: 2),
+          borderSide: const BorderSide(
+            color: Colors.deepPurpleAccent,
+            width: 2,
+          ),
         ),
-        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 18,
+        ),
       ),
     );
   }

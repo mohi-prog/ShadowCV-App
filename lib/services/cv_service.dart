@@ -100,6 +100,54 @@ class CVService {
 
     return result.files;
   }
+  // ─── Google Drive PDF auswählen ──────────────────────────────────────────
+static Future<PlatformFile?> pickFromGoogleDrive() async {
+  try {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: false,
+      withData: true, // wichtig für Drive-Dateien
+    );
+
+    if (result == null || result.files.isEmpty) return null;
+
+    final file = result.files.first;
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw Exception('PDF ist zu groß. Maximal 10MB erlaubt.');
+    }
+
+    return file;
+  } catch (e) {
+    print('CVService ERROR in pickFromGoogleDrive: $e');
+    rethrow;
+  }
+}
+
+// ─── Text aus PDF extrahieren wenn nur bytes vorhanden (z.B. Drive) ──────
+static Future<String> extractTextFromBytes(List<int> bytes) async {
+  try {
+    if (bytes.isEmpty) throw Exception('Keine Daten vorhanden');
+
+    final document = PdfDocument(inputBytes: bytes);
+    final extractor = PdfTextExtractor(document);
+    final text = extractor.extractText();
+    document.dispose();
+
+    if (text.trim().length < 50) {
+      throw Exception(
+        'PDF scheint zu wenig Text zu enthalten. '
+        'Bitte ein PDF mit echtem Text verwenden.',
+      );
+    }
+
+    return text;
+  } catch (e) {
+    print('CVService ERROR in extractTextFromBytes: $e');
+    rethrow;
+  }
+}
 
   // ─── PDF zu Firebase Storage hochladen ───────────────────────────────────
   // Gibt die Download-URL zurück

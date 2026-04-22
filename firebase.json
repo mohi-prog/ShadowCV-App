@@ -1,1 +1,42 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"shadowcv","appId":"1:151340523557:android:3044b2ec702fdfef8ddfcc","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"shadowcv","configurations":{"android":"1:151340523557:android:3044b2ec702fdfef8ddfcc","ios":"1:151340523557:ios:07ca294d480e65e38ddfcc","macos":"1:151340523557:ios:07ca294d480e65e38ddfcc","web":"1:151340523557:web:cd54c9f4ed3a90978ddfcc","windows":"1:151340523557:web:2966378e4b0478168ddfcc"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "shadowcv",
+          "appId": "1:151340523557:android:3044b2ec702fdfef8ddfcc",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "shadowcv",
+          "configurations": {
+            "android": "1:151340523557:android:3044b2ec702fdfef8ddfcc",
+            "ios": "1:151340523557:ios:07ca294d480e65e38ddfcc",
+            "macos": "1:151340523557:ios:07ca294d480e65e38ddfcc",
+            "web": "1:151340523557:web:cd54c9f4ed3a90978ddfcc",
+            "windows": "1:151340523557:web:2966378e4b0478168ddfcc"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+  {
+    "source": "shadowcv1",
+    "codebase": "shadowcv1",
+    "disallowLegacyRuntimeConfig": true,
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "*.local"
+    ],
+    "predeploy": [
+      "npm --prefix \"$RESOURCE_DIR\" run build"
+    ]
+  }
+]
+}

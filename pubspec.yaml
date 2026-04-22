@@ -28,11 +28,21 @@ dependencies:
   file_picker: ^8.1.2
   syncfusion_flutter_pdf: ^27.1.48   # PDF Text-Extraktion (on-device, kostenlos)
 
+  pdf: ^3.10.8
+  printing: ^5.12.0
+
   # NEU: HTTP für Claude API
-  http: ^1.2.2
+  http: ^1.6.0
 
   # NEU: UUID für eindeutige IDs
   uuid: ^4.4.2
+
+  in_app_purchase: ^3.1.13
+  image: ^4.8.0
+  image_picker: ^1.2.1
+  crop_your_image: ^1.1.0
+  flutter_riverpod: ^3.3.1
+  before_after: ^3.2.0
 
 dev_dependencies:
   flutter_test:

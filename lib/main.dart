@@ -2,28 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'firebase_options.dart';
-import 'onboarding.dart';
-import 'home_screen.dart';
-import 'kennlernphase.dart';
-import 'google_auth_service.dart';
-import 'splash_screen.dart';
+import 'package:flutter/rendering.dart';
+import 'package:shadowcv/services/premium_service.dart';
+import 'firebase/firebase_options.dart';
+import 'screens/onboarding.dart';
+import 'screens/home_screen.dart';
+import 'screens/kennlernphase.dart';
+import 'services/google_auth_service.dart';
+import 'screens/splash_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'services/translation_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await GoogleAuthService.initialize();
-  runApp(const MyApp());
+  debugPaintSizeEnabled = false;
+
+  await AppTranslation.initLanguage();
+  await PremiumService.initialize();
+
+  final prefs = await SharedPreferences.getInstance();
+  final skipSplash = prefs.getBool('skip_splash_once') ?? false;
+
+  if (skipSplash) {
+    await prefs.remove('skip_splash_once');
+  }
+
+  runApp( ProviderScope(child: MyApp(skipSplash: skipSplash)));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool skipSplash;
+  MyApp({super.key, this.skipSplash = false});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const AuthWrapper(),
+      title: 'ShadowCV',
+
+      builder: (context, child) {
+        final media = MediaQuery.of(context);
+
+        return MediaQuery(
+          data: media.copyWith(
+            // verhindert Layout-Overflows bei extremen Schriftgrößen
+            textScaler: media.textScaler.clamp(
+              minScaleFactor: 0.9,
+              maxScaleFactor: 1.15,
+            ),
+          ),
+          child: child!,
+        );
+      },
+
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+        primaryColor: Colors.deepPurpleAccent,
+        useMaterial3: true,
+        fontFamily: 'Boldo',
+      ),
+      home: skipSplash
+          ? const AuthWrapper()
+          : const SplashScreen(nextScreen: AuthWrapper()),
     );
   }
 }
@@ -38,32 +83,24 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   Future<DocumentSnapshot>? _userFuture;
   String? _lastUid;
-  bool _initialized = false;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
-      initialData: FirebaseAuth.instance.currentUser,
       builder: (context, snapshot) {
         final user = snapshot.data;
 
-        // 1️⃣ Auth-Status prüfen
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !_initialized) {
-          return const SplashScreen(nextScreen: ShadowCVOnboarding());
-        }
-
-        // 2️⃣ Nicht eingeloggt
+        // 1. Nicht eingeloggt -> Onboarding
         if (user == null) {
-          _initialized = true;
+          debugPrint("AuthWrapper: User is null -> Onboarding");
           return const ShadowCVOnboarding();
         }
 
         final uid = user.uid;
-        _initialized = true;
+        debugPrint("AuthWrapper: User is logged in: $uid");
 
-        // 3️⃣ Firestore-Daten laden
+        // 2. Firestore Future initialisieren, wenn nötig
         if (_userFuture == null || _lastUid != uid) {
           _lastUid = uid;
           _userFuture = FirebaseFirestore.instance
@@ -75,21 +112,35 @@ class _AuthWrapperState extends State<AuthWrapper> {
         return FutureBuilder<DocumentSnapshot>(
           future: _userFuture,
           builder: (context, userSnapshot) {
+            // Warten auf Firestore
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              // Nur beim ersten Laden den Splash zeigen
-              return const HomeScreen();
+              return const Scaffold(
+                backgroundColor: Colors.black,
+                body: Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.deepPurpleAccent,
+                  ),
+                ),
+              );
             }
 
+            // Check: Existiert Dokument?
             if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+              debugPrint("AuthWrapper: Firestore doc missing -> Kennlernphase");
               return const Kennlernphase();
             }
 
             final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+            final name = userData['name'];
 
-            if ((userData['name'] ?? '').toString().isEmpty) {
+            // Check: Ist Name leer?
+            if ((name ?? '').toString().isEmpty) {
+              debugPrint("AuthWrapper: Name empty -> Kennlernphase");
               return const Kennlernphase();
             }
 
+            // Alles gut -> Home
+            debugPrint("AuthWrapper: All good -> HomeScreen");
             return const HomeScreen();
           },
         );
