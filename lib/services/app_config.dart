@@ -16,7 +16,7 @@ class AppConfig {
       'meta-llama/llama-4-scout-17b-16e-instruct';
 
   // ── Claude (Anthropic) API ──
-  static const String claudeApiKey = 'DEIN_CLAUDE_API_KEY_HIER';
+  static const String claudeApiKey = 'DEN_CLAUDE_API_KEY_HIER';
   static const String claudeApiUrl = 'https://api.anthropic.com/v1/messages';
   static const String claudeModel = 'claude-opus-4-6';
 
