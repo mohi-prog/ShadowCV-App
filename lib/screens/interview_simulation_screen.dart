@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shadowcv/services/translation_service.dart';
 import 'package:shadowcv/services/gemini_analysis_service.dart';
+import 'package:shadowcv/services/app_config.dart';
 
 // Zustände der Simulation
 enum _SimPhase { questioning, evaluating, evaluated, completed }
@@ -49,10 +50,9 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
 
   late AnimationController _dotsAnim;
 
-  // API Config (identisch mit Service)
-  static const _apiKey =
-      'REDACTED_GROQ_KEY';
-  static const _url = 'https://api.groq.com/openai/v1/chat/completions';
+  // API Config (zentral in AppConfig)
+  static const _apiKey = AppConfig.groqApiKey;
+  static const _url = AppConfig.groqApiUrl;
 
   // ── Getter ─────────────────────────────────────────────────
   List<Map<String, dynamic>> get _questions {
@@ -64,9 +64,8 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
       _currentIndex < _questions.length ? _questions[_currentIndex] : null;
 
   int get _totalQuestions => _questions.length;
-  double get _progress => _totalQuestions > 0
-      ? (_currentIndex + 1) / _totalQuestions
-      : 0;
+  double get _progress =>
+      _totalQuestions > 0 ? (_currentIndex + 1) / _totalQuestions : 0;
 
   // ── Init / Dispose ─────────────────────────────────────────
   @override
@@ -77,9 +76,10 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _entryFade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _entryAnim, curve: Curves.easeOut),
-    );
+    _entryFade = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _entryAnim, curve: Curves.easeOut));
     _entrySlide = Tween<Offset>(
       begin: const Offset(0, 0.04),
       end: Offset.zero,
@@ -185,7 +185,8 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
         : 'No CV provided.';
 
     // Evaluation Prompt – strukturiert aber als Fließtext
-    final prompt = '''
+    final prompt =
+        '''
 You are an expert interview coach evaluating a candidate's response.
 
 === INTERVIEW CONTEXT ===
@@ -230,7 +231,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
         'Authorization': 'Bearer $_apiKey',
       });
       request.body = jsonEncode({
-        'model': 'llama-3.1-8b-instant',
+        'model': AppConfig.groqModelFast,
         'messages': [
           {'role': 'user', 'content': prompt},
         ],
@@ -291,7 +292,8 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     } catch (e) {
       if (mounted) {
         setState(() {
-          _streamedEvaluation = '❌ ${e.toString().replaceAll('Exception: ', '')}';
+          _streamedEvaluation =
+              '❌ ${e.toString().replaceAll('Exception: ', '')}';
           _phase = _SimPhase.evaluated;
           _isStreaming = false;
         });
@@ -400,8 +402,11 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white.withOpacity(0.08)),
               ),
-              child: const Icon(Icons.close_rounded,
-                  color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.close_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -433,13 +438,13 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           // Fragen-Zähler
           if (_phase != _SimPhase.completed)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.deepPurpleAccent.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: Colors.deepPurpleAccent.withOpacity(0.3)),
+                  color: Colors.deepPurpleAccent.withOpacity(0.3),
+                ),
               ),
               child: Text(
                 '${_currentIndex + 1} / $_totalQuestions',
@@ -469,7 +474,8 @@ Keep the total evaluation under 250 words. Be specific, never generic.
               value: _progress,
               backgroundColor: Colors.white.withOpacity(0.06),
               valueColor: const AlwaysStoppedAnimation<Color>(
-                  Colors.deepPurpleAccent),
+                Colors.deepPurpleAccent,
+              ),
               minHeight: 4,
             ),
           ),
@@ -498,32 +504,33 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
           children: [
             // Fragen-Card
-            _buildQuestionCard(
-                category, questionText, whyAsked, color, icon),
+            _buildQuestionCard(category, questionText, whyAsked, color, icon),
             const SizedBox(height: 20),
 
             // User-Antwort (nach Submit sichtbar)
             if (_phase == _SimPhase.evaluating ||
                 _phase == _SimPhase.evaluated) ...[
-              _buildAnswerBubble(_answerController.text.isNotEmpty
-                  ? _answerController.text
-                  : _evaluations.isNotEmpty
-                      ? _evaluations.last['answer'] ?? ''
-                      : ''),
+              _buildAnswerBubble(
+                _answerController.text.isNotEmpty
+                    ? _answerController.text
+                    : _evaluations.isNotEmpty
+                    ? _evaluations.last['answer'] ?? ''
+                    : '',
+              ),
               const SizedBox(height: 16),
             ],
 
             // Streaming Evaluation oder finales Ergebnis
             if (_phase == _SimPhase.evaluating) ...[
-              _buildEvaluationCard(
-                  _streamedEvaluation, isStreaming: true),
+              _buildEvaluationCard(_streamedEvaluation, isStreaming: true),
               const SizedBox(height: 80),
             ],
-            if (_phase == _SimPhase.evaluated &&
-                _evaluations.isNotEmpty) ...[
-              _buildEvaluationCard(_evaluations.last['evaluation'] ?? '',
-                  score: _evaluations.last['score'],
-                  isStreaming: false),
+            if (_phase == _SimPhase.evaluated && _evaluations.isNotEmpty) ...[
+              _buildEvaluationCard(
+                _evaluations.last['evaluation'] ?? '',
+                score: _evaluations.last['score'],
+                isStreaming: false,
+              ),
               const SizedBox(height: 20),
               _buildNextButton(),
               const SizedBox(height: 40),
@@ -534,8 +541,13 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     );
   }
 
-  Widget _buildQuestionCard(String category, String questionText,
-      String whyAsked, Color color, IconData icon) {
+  Widget _buildQuestionCard(
+    String category,
+    String questionText,
+    String whyAsked,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -543,10 +555,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.12),
-            Colors.transparent,
-          ],
+          colors: [color.withOpacity(0.12), Colors.transparent],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: color.withOpacity(0.25), width: 1.5),
@@ -579,8 +588,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
               const Spacer(),
               // Interviewer Badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(8),
@@ -588,8 +596,11 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.smart_toy_rounded,
-                        color: Colors.white54, size: 12),
+                    const Icon(
+                      Icons.smart_toy_rounded,
+                      color: Colors.white54,
+                      size: 12,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       AppTranslation.t('Interviewer'),
@@ -619,8 +630,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           ),
 
           // Why Asked (als Hint)
-          if (whyAsked.isNotEmpty &&
-              _phase == _SimPhase.questioning) ...[
+          if (whyAsked.isNotEmpty && _phase == _SimPhase.questioning) ...[
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),
@@ -631,8 +641,11 @@ Keep the total evaluation under 250 words. Be specific, never generic.
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: Colors.white38, size: 14),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.white38,
+                    size: 14,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -663,8 +676,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
@@ -690,10 +702,12 @@ Keep the total evaluation under 250 words. Be specific, never generic.
   }
 
   /// Evaluation Card mit optionalem Score-Badge
-  Widget _buildEvaluationCard(String evaluation,
-      {int? score, bool isStreaming = false}) {
-    final scoreColor =
-        score != null ? _getScoreColor(score) : Colors.white54;
+  Widget _buildEvaluationCard(
+    String evaluation, {
+    int? score,
+    bool isStreaming = false,
+  }) {
+    final scoreColor = score != null ? _getScoreColor(score) : Colors.white54;
 
     return Container(
       width: double.infinity,
@@ -719,8 +733,11 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                   color: Colors.deepPurpleAccent.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.psychology_rounded,
-                    color: Colors.deepPurpleAccent, size: 16),
+                child: const Icon(
+                  Icons.psychology_rounded,
+                  color: Colors.deepPurpleAccent,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 10),
               Text(
@@ -738,12 +755,13 @@ Keep the total evaluation under 250 words. Be specific, never generic.
               if (score != null && !isStreaming)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 5),
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: scoreColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: scoreColor.withOpacity(0.3)),
+                    border: Border.all(color: scoreColor.withOpacity(0.3)),
                   ),
                   child: Text(
                     '$score / 10',
@@ -763,18 +781,14 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: List.generate(3, (i) {
-                        final phase =
-                            (_dotsAnim.value + (i * 0.33)) % 1.0;
-                        final opacity =
-                            0.3 + (0.7 * _pulseFn(phase));
+                        final phase = (_dotsAnim.value + (i * 0.33)) % 1.0;
+                        final opacity = 0.3 + (0.7 * _pulseFn(phase));
                         return Container(
-                          margin:
-                              const EdgeInsets.symmetric(horizontal: 2),
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
                           width: 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: Colors.deepPurpleAccent
-                                .withOpacity(opacity),
+                            color: Colors.deepPurpleAccent.withOpacity(opacity),
                             shape: BoxShape.circle,
                           ),
                         );
@@ -789,8 +803,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           const SizedBox(height: 14),
 
           // Evaluation Text mit Formatting
-          _buildFormattedEvaluation(
-              evaluation.isEmpty ? '▍' : evaluation),
+          _buildFormattedEvaluation(evaluation.isEmpty ? '▍' : evaluation),
         ],
       ),
     );
@@ -880,34 +893,43 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     int lastEnd = 0;
     for (final match in regex.allMatches(line)) {
       if (match.start > lastEnd) {
-        spans.add(TextSpan(
-          text: line.substring(lastEnd, match.start),
-          style: TextStyle(
+        spans.add(
+          TextSpan(
+            text: line.substring(lastEnd, match.start),
+            style: TextStyle(
               color: Colors.white.withOpacity(0.8),
               fontFamily: 'Boldo',
               fontSize: 13,
-              height: 1.5),
-        ));
+              height: 1.5,
+            ),
+          ),
+        );
       }
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: const TextStyle(
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: const TextStyle(
             color: Colors.white,
             fontFamily: 'Boldo',
             fontSize: 13,
-            fontWeight: FontWeight.w900),
-      ));
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      );
       lastEnd = match.end;
     }
     if (lastEnd < line.length) {
-      spans.add(TextSpan(
-        text: line.substring(lastEnd),
-        style: TextStyle(
+      spans.add(
+        TextSpan(
+          text: line.substring(lastEnd),
+          style: TextStyle(
             color: Colors.white.withOpacity(0.8),
             fontFamily: 'Boldo',
             fontSize: 13,
-            height: 1.5),
-      ));
+            height: 1.5,
+          ),
+        ),
+      );
     }
     return RichText(text: TextSpan(children: spans));
   }
@@ -922,9 +944,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
       child: ElevatedButton.icon(
         onPressed: _nextQuestion,
         icon: Icon(
-          isLast
-              ? Icons.bar_chart_rounded
-              : Icons.arrow_forward_rounded,
+          isLast ? Icons.bar_chart_rounded : Icons.arrow_forward_rounded,
           size: 20,
         ),
         label: Text(
@@ -941,7 +961,8 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           backgroundColor: Colors.deepPurpleAccent,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: 0,
         ),
       ),
@@ -962,8 +983,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
       ),
       decoration: BoxDecoration(
         color: const Color(0xFF050505),
-        border:
-            Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -973,8 +993,11 @@ Keep the total evaluation under 250 words. Be specific, never generic.
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               children: [
-                const Icon(Icons.mic_rounded,
-                    color: Colors.deepPurpleAccent, size: 14),
+                const Icon(
+                  Icons.mic_rounded,
+                  color: Colors.deepPurpleAccent,
+                  size: 14,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   AppTranslation.t('Type your answer as you would say it'),
@@ -994,31 +1017,36 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 child: TextField(
                   controller: _answerController,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontFamily: 'Boldo',
-                      fontSize: 14),
+                    color: Colors.white,
+                    fontFamily: 'Boldo',
+                    fontSize: 14,
+                  ),
                   maxLines: 5,
                   minLines: 2,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
                     hintText: AppTranslation.t('Your answer...'),
                     hintStyle: TextStyle(
-                        color: Colors.white.withOpacity(0.2),
-                        fontFamily: 'Boldo',
-                        fontSize: 14),
+                      color: Colors.white.withOpacity(0.2),
+                      fontFamily: 'Boldo',
+                      fontSize: 14,
+                    ),
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.05),
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide.none),
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
                       borderSide: BorderSide(
-                          color:
-                              Colors.deepPurpleAccent.withOpacity(0.4)),
+                        color: Colors.deepPurpleAccent.withOpacity(0.4),
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                   ),
                 ),
               ),
@@ -1030,15 +1058,15 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                   padding: const EdgeInsets.all(14),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Colors.deepPurpleAccent,
-                        Colors.purpleAccent
-                      ],
+                      colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
                     ),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.send_rounded,
-                      color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
               ),
             ],
@@ -1054,9 +1082,9 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     final avgScore = _evaluations.isEmpty
         ? 0.0
         : _evaluations
-                .map((e) => (e['score'] as int?) ?? 0)
-                .reduce((a, b) => a + b) /
-            _evaluations.length;
+                  .map((e) => (e['score'] as int?) ?? 0)
+                  .reduce((a, b) => a + b) /
+              _evaluations.length;
 
     final scoreColor = _getScoreColor(avgScore.round());
 
@@ -1073,19 +1101,21 @@ Keep the total evaluation under 250 words. Be specific, never generic.
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  scoreColor.withOpacity(0.15),
-                  Colors.transparent,
-                ],
+                colors: [scoreColor.withOpacity(0.15), Colors.transparent],
               ),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: scoreColor.withOpacity(0.25),
-                  width: 1.5),
+              border: Border.all(
+                color: scoreColor.withOpacity(0.25),
+                width: 1.5,
+              ),
             ),
             child: Column(
               children: [
-                const Icon(Icons.emoji_events_rounded,
-                    color: Colors.amber, size: 44),
+                const Icon(
+                  Icons.emoji_events_rounded,
+                  color: Colors.amber,
+                  size: 44,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   AppTranslation.t('Simulation Complete!'),
@@ -1109,12 +1139,13 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 // Avg Score
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 12),
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: scoreColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(16),
-                    border:
-                        Border.all(color: scoreColor.withOpacity(0.3)),
+                    border: Border.all(color: scoreColor.withOpacity(0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1156,9 +1187,10 @@ Keep the total evaluation under 250 words. Be specific, never generic.
 
           // Per-Question Scores
           _buildSectionLabel(
-              AppTranslation.t('Question Scores'),
-              Icons.bar_chart_rounded,
-              Colors.white54),
+            AppTranslation.t('Question Scores'),
+            Icons.bar_chart_rounded,
+            Colors.white54,
+          ),
           const SizedBox(height: 12),
           ..._evaluations.asMap().entries.map((e) {
             final i = e.key;
@@ -1167,13 +1199,11 @@ Keep the total evaluation under 250 words. Be specific, never generic.
             final c = _getScoreColor(s);
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.03),
                 borderRadius: BorderRadius.circular(14),
-                border:
-                    Border.all(color: Colors.white.withOpacity(0.06)),
+                border: Border.all(color: Colors.white.withOpacity(0.06)),
               ),
               child: Row(
                 children: [
@@ -1213,7 +1243,9 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: c.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(8),
@@ -1237,9 +1269,10 @@ Keep the total evaluation under 250 words. Be specific, never generic.
 
           // AI Summary
           _buildSectionLabel(
-              AppTranslation.t('Overall Feedback'),
-              Icons.psychology_rounded,
-              Colors.deepPurpleAccent),
+            AppTranslation.t('Overall Feedback'),
+            Icons.psychology_rounded,
+            Colors.deepPurpleAccent,
+          ),
           const SizedBox(height: 12),
 
           _isSummaryLoading
@@ -1263,8 +1296,8 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                     color: Colors.deepPurpleAccent.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color:
-                            Colors.deepPurpleAccent.withOpacity(0.15)),
+                      color: Colors.deepPurpleAccent.withOpacity(0.15),
+                    ),
                   ),
                   child: _buildFormattedEvaluation(_summary),
                 ),
@@ -1290,7 +1323,8 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 foregroundColor: Colors.white,
                 side: BorderSide(color: Colors.white.withOpacity(0.2)),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ),
@@ -1324,20 +1358,21 @@ Keep the total evaluation under 250 words. Be specific, never generic.
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF111111),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           AppTranslation.t('Exit Simulation?'),
           style: const TextStyle(
-              color: Colors.white,
-              fontFamily: 'Boldo',
-              fontWeight: FontWeight.w900),
+            color: Colors.white,
+            fontFamily: 'Boldo',
+            fontWeight: FontWeight.w900,
+          ),
         ),
         content: Text(
-          AppTranslation.t(
-              'Your progress will be lost if you exit now.'),
+          AppTranslation.t('Your progress will be lost if you exit now.'),
           style: TextStyle(
-              color: Colors.white.withOpacity(0.6), fontFamily: 'Boldo'),
+            color: Colors.white.withOpacity(0.6),
+            fontFamily: 'Boldo',
+          ),
         ),
         actions: [
           TextButton(
@@ -1345,7 +1380,9 @@ Keep the total evaluation under 250 words. Be specific, never generic.
             child: Text(
               AppTranslation.t('Continue'),
               style: const TextStyle(
-                  color: Colors.deepPurpleAccent, fontFamily: 'Boldo'),
+                color: Colors.deepPurpleAccent,
+                fontFamily: 'Boldo',
+              ),
             ),
           ),
           TextButton(
@@ -1356,7 +1393,9 @@ Keep the total evaluation under 250 words. Be specific, never generic.
             child: Text(
               AppTranslation.t('Exit'),
               style: const TextStyle(
-                  color: Colors.redAccent, fontFamily: 'Boldo'),
+                color: Colors.redAccent,
+                fontFamily: 'Boldo',
+              ),
             ),
           ),
         ],

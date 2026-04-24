@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shadowcv/services/translation_service.dart';
 import 'package:shadowcv/services/gemini_analysis_service.dart';
+import 'package:shadowcv/services/app_config.dart';
 
 class CVChatScreen extends StatefulWidget {
   final String rawText;
@@ -69,11 +70,13 @@ class _CVChatScreenState extends State<CVChatScreen>
       duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-        parent: _slideAnimController, curve: Curves.easeOutCubic));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _slideAnimController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _slideAnimController, curve: Curves.easeIn),
     );
@@ -89,7 +92,8 @@ class _CVChatScreenState extends State<CVChatScreen>
     _messages.add({
       'role': 'assistant',
       'content': AppTranslation.t(
-          'Hi! I have analyzed your CV. Ask me anything about it!'),
+        'Hi! I have analyzed your CV. Ask me anything about it!',
+      ),
     });
   }
 
@@ -170,15 +174,13 @@ ${widget.rawText}
           .map((m) => {'role': m['role']!, 'content': m['content']!})
           .toList();
 
-      final request = http.Request(
-          'POST', Uri.parse('https://api.groq.com/openai/v1/chat/completions'));
+      final request = http.Request('POST', Uri.parse(AppConfig.groqApiUrl));
       request.headers.addAll({
         'Content-Type': 'application/json',
-        'Authorization':
-            'Bearer REDACTED_GROQ_KEY',
+        'Authorization': 'Bearer ${AppConfig.groqApiKey}',
       });
       request.body = jsonEncode({
-        'model': 'llama-3.1-8b-instant',
+        'model': AppConfig.groqModelFast,
         'messages': [
           {'role': 'system', 'content': _buildSystemPrompt()},
           ...conversationMessages,
@@ -192,9 +194,12 @@ ${widget.rawText}
       try {
         final streamedResponse = await client
             .send(request)
-            .timeout(const Duration(seconds: 45), onTimeout: () {
-          throw Exception('Connection timed out. Please try again.');
-        });
+            .timeout(
+              const Duration(seconds: 45),
+              onTimeout: () {
+                throw Exception('Connection timed out. Please try again.');
+              },
+            );
 
         if (streamedResponse.statusCode != 200) {
           throw Exception('Error: ${streamedResponse.statusCode}');
@@ -255,8 +260,7 @@ ${widget.rawText}
           height: MediaQuery.of(context).size.height * 0.85,
           decoration: BoxDecoration(
             color: const Color(0xFF0A0A0A),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             border: Border.all(color: Colors.white.withOpacity(0.08)),
           ),
           child: Column(
@@ -265,9 +269,12 @@ ${widget.rawText}
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: _messages.length +
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  itemCount:
+                      _messages.length +
                       (_messages.length == 1 ? 1 : 0), // +1 for suggestions
                   itemBuilder: (context, index) {
                     // Suggestions nach Welcome
@@ -275,8 +282,9 @@ ${widget.rawText}
                       return _buildSuggestions();
                     }
 
-                    final msgIndex =
-                        index > 1 && _messages.length == 1 ? index - 1 : index;
+                    final msgIndex = index > 1 && _messages.length == 1
+                        ? index - 1
+                        : index;
                     if (msgIndex >= _messages.length) return const SizedBox();
 
                     final msg = _messages[msgIndex];
@@ -289,7 +297,8 @@ ${widget.rawText}
                     return _buildMessageBubble(
                       msg['content']!,
                       isUser: msg['role'] == 'user',
-                      isStreaming: _isLoading && msgIndex == _messages.length - 1,
+                      isStreaming:
+                          _isLoading && msgIndex == _messages.length - 1,
                     );
                   },
                 ),
@@ -311,7 +320,8 @@ ${widget.rawText}
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         border: Border(
-            bottom: BorderSide(color: Colors.white.withOpacity(0.06))),
+          bottom: BorderSide(color: Colors.white.withOpacity(0.06)),
+        ),
       ),
       child: Column(
         children: [
@@ -339,8 +349,11 @@ ${widget.rawText}
                   ),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.psychology_rounded,
-                    color: Colors.deepPurpleAccent, size: 20),
+                child: const Icon(
+                  Icons.psychology_rounded,
+                  color: Colors.deepPurpleAccent,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -350,10 +363,11 @@ ${widget.rawText}
                     Text(
                       AppTranslation.t('CV Assistant'),
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Boldo'),
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Boldo',
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -372,11 +386,12 @@ ${widget.rawText}
                               ? AppTranslation.t('Typing...')
                               : AppTranslation.t('Online'),
                           style: TextStyle(
-                              color: _isLoading
-                                  ? Colors.deepPurpleAccent
-                                  : Colors.white.withOpacity(0.35),
-                              fontSize: 12,
-                              fontFamily: 'Boldo'),
+                            color: _isLoading
+                                ? Colors.deepPurpleAccent
+                                : Colors.white.withOpacity(0.35),
+                            fontSize: 12,
+                            fontFamily: 'Boldo',
+                          ),
                         ),
                       ],
                     ),
@@ -385,8 +400,10 @@ ${widget.rawText}
               ),
               // Message Count
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(10),
@@ -394,9 +411,10 @@ ${widget.rawText}
                 child: Text(
                   '${_messages.where((m) => m['role'] == 'user').length} ${AppTranslation.t('msgs')}',
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 11,
-                      fontFamily: 'Boldo'),
+                    color: Colors.white.withOpacity(0.3),
+                    fontSize: 11,
+                    fontFamily: 'Boldo',
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -408,8 +426,11 @@ ${widget.rawText}
                     color: Colors.white.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
             ],
@@ -432,9 +453,10 @@ ${widget.rawText}
             child: Text(
               AppTranslation.t('Quick questions:'),
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.3),
-                  fontSize: 12,
-                  fontFamily: 'Boldo'),
+                color: Colors.white.withOpacity(0.3),
+                fontSize: 12,
+                fontFamily: 'Boldo',
+              ),
             ),
           ),
           Wrap(
@@ -444,21 +466,25 @@ ${widget.rawText}
               return GestureDetector(
                 onTap: () => _sendMessage(s),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.deepPurpleAccent.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                        color: Colors.deepPurpleAccent.withOpacity(0.2)),
+                      color: Colors.deepPurpleAccent.withOpacity(0.2),
+                    ),
                   ),
                   child: Text(
                     s,
                     style: const TextStyle(
-                        color: Colors.deepPurpleAccent,
-                        fontSize: 12,
-                        fontFamily: 'Boldo',
-                        fontWeight: FontWeight.w600),
+                      color: Colors.deepPurpleAccent,
+                      fontSize: 12,
+                      fontFamily: 'Boldo',
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               );
@@ -495,14 +521,18 @@ ${widget.rawText}
                   bottomRight: Radius.circular(18),
                 ),
                 border: Border.all(
-                    color: Colors.deepPurpleAccent.withOpacity(0.15)),
+                  color: Colors.deepPurpleAccent.withOpacity(0.15),
+                ),
               ),
-              child: Text(content,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontFamily: 'Boldo',
-                      height: 1.5)),
+              child: Text(
+                content,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontFamily: 'Boldo',
+                  height: 1.5,
+                ),
+              ),
             ),
           ),
         ],
@@ -510,30 +540,31 @@ ${widget.rawText}
     );
   }
 
-  Widget _buildMessageBubble(String content,
-      {required bool isUser, bool isStreaming = false}) {
+  Widget _buildMessageBubble(
+    String content, {
+    required bool isUser,
+    bool isStreaming = false,
+  }) {
     // Streaming cursor
-    final displayContent =
-        (!isUser && content.isEmpty) ? '▍' : (isStreaming ? '$content▍' : content);
+    final displayContent = (!isUser && content.isEmpty)
+        ? '▍'
+        : (isStreaming ? '$content▍' : content);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isUser) ...[
-            _buildAIAvatar(),
-            const SizedBox(width: 10),
-          ],
+          if (!isUser) ...[_buildAIAvatar(), const SizedBox(width: 10)],
           Flexible(
             child: Container(
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.75,
               ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isUser
                     ? Colors.deepPurpleAccent
@@ -569,10 +600,12 @@ ${widget.rawText}
         spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
       // Bold Text
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: const TextStyle(fontWeight: FontWeight.w900),
-      ));
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+      );
       lastEnd = match.end;
     }
     // Rest
@@ -600,8 +633,11 @@ ${widget.rawText}
         color: Colors.deepPurpleAccent.withOpacity(0.12),
         shape: BoxShape.circle,
       ),
-      child: const Icon(Icons.psychology_rounded,
-          color: Colors.deepPurpleAccent, size: 16),
+      child: const Icon(
+        Icons.psychology_rounded,
+        color: Colors.deepPurpleAccent,
+        size: 16,
+      ),
     );
   }
 
@@ -615,8 +651,7 @@ ${widget.rawText}
           _buildAIAvatar(),
           const SizedBox(width: 10),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.06),
               borderRadius: BorderRadius.circular(16),
@@ -629,7 +664,8 @@ ${widget.rawText}
                   mainAxisSize: MainAxisSize.min,
                   children: List.generate(3, (i) {
                     // Versetzte Phasen für jeden Dot
-                    final phase = (_dotsAnimController.value + (i * 0.33)) % 1.0;
+                    final phase =
+                        (_dotsAnimController.value + (i * 0.33)) % 1.0;
                     final scale = 0.5 + (0.5 * _pulse(phase));
                     final opacity = 0.3 + (0.7 * _pulse(phase));
                     return Container(
@@ -637,12 +673,10 @@ ${widget.rawText}
                       width: 7,
                       height: 7,
                       decoration: BoxDecoration(
-                        color:
-                            Colors.deepPurpleAccent.withOpacity(opacity),
+                        color: Colors.deepPurpleAccent.withOpacity(opacity),
                         shape: BoxShape.circle,
                       ),
-                      transform: Matrix4.identity()
-                        ..scale(scale, scale),
+                      transform: Matrix4.identity()..scale(scale, scale),
                       transformAlignment: Alignment.center,
                     );
                   }),
@@ -673,8 +707,7 @@ ${widget.rawText}
       ),
       decoration: BoxDecoration(
         color: const Color(0xFF0A0A0A),
-        border:
-            Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.06))),
       ),
       child: Row(
         children: [
@@ -682,28 +715,36 @@ ${widget.rawText}
             child: TextField(
               controller: _messageController,
               style: const TextStyle(
-                  color: Colors.white, fontFamily: 'Boldo', fontSize: 14),
+                color: Colors.white,
+                fontFamily: 'Boldo',
+                fontSize: 14,
+              ),
               maxLines: null,
               textCapitalization: TextCapitalization.sentences,
               onSubmitted: _isLoading ? null : _sendMessage,
               decoration: InputDecoration(
                 hintText: AppTranslation.t('Ask about your CV...'),
                 hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.2),
-                    fontFamily: 'Boldo',
-                    fontSize: 14),
+                  color: Colors.white.withOpacity(0.2),
+                  fontFamily: 'Boldo',
+                  fontSize: 14,
+                ),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.05),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide(
-                      color: Colors.deepPurpleAccent.withOpacity(0.4)),
+                    color: Colors.deepPurpleAccent.withOpacity(0.4),
+                  ),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
@@ -718,10 +759,9 @@ ${widget.rawText}
               decoration: BoxDecoration(
                 gradient: _isLoading
                     ? null
-                    : const LinearGradient(colors: [
-                        Colors.deepPurpleAccent,
-                        Colors.purpleAccent
-                      ]),
+                    : const LinearGradient(
+                        colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
+                      ),
                 color: _isLoading ? Colors.white.withOpacity(0.05) : null,
                 shape: BoxShape.circle,
               ),

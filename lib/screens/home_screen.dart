@@ -28,6 +28,7 @@ import 'package:shadowcv/services/cv_service.dart';
 import 'package:shadowcv/services/gemini_analysis_service.dart';
 import 'package:shadowcv/services/premium_service.dart';
 import 'package:shadowcv/services/translation_service.dart';
+import 'package:shadowcv/services/app_config.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shadowcv/widgets/aurora_background.dart';
 
@@ -480,8 +481,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<String?> _extractTextFromImageBase64(String base64Image) async {
     try {
-      const apiKey = String.fromEnvironment('GROQ_API_KEY');
-      const url = 'https://api.groq.com/openai/v1/chat/completions';
+      const apiKey = AppConfig.groqApiKey;
+      const url = AppConfig.groqApiUrl;
 
       final response = await http.post(
         Uri.parse(url),
@@ -490,7 +491,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': 'meta-llama/llama-4-scout-17b-16e-instruct',
+          'model': AppConfig.groqModelVision,
           'messages': [
             {
               'role': 'user',
@@ -577,17 +578,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (modeResult == null || !mounted) return;
       final mode = modeResult['mode'] as AnalysisMode;
 
-    final canUseMode = await PremiumService.canUseMode(mode.name);
+      final canUseMode = await PremiumService.canUseMode(mode.name);
 
-if (!canUseMode) {
-  if (!mounted) return;
-  await Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const PremiumScreen()),
-  );
-  await _loadPremiumStatus();
-  return;
-}
+      if (!canUseMode) {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PremiumScreen()),
+        );
+        await _loadPremiumStatus();
+        return;
+      }
 
       setState(() {
         _isAnalyzing = true;
@@ -1020,83 +1021,83 @@ if (!canUseMode) {
   }
 
   Future<void> _startSalaryInsights() async {
-  if (!_isPremium) {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const PremiumScreen()),
-    );
-    return;
-  }
+    if (!_isPremium) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PremiumScreen()),
+      );
+      return;
+    }
 
-  // Nur Job + Country – kein CV-Upload mehr
-  final input = await _showSalaryInputDialog();
-  if (input == null || !mounted) return;
+    // Nur Job + Country – kein CV-Upload mehr
+    final input = await _showSalaryInputDialog();
+    if (input == null || !mounted) return;
 
-  final targetJob = input['job'] ?? '';
-  final country = input['country'] ?? '';
-  if (targetJob.isEmpty || country.isEmpty) return;
+    final targetJob = input['job'] ?? '';
+    final country = input['country'] ?? '';
+    if (targetJob.isEmpty || country.isEmpty) return;
 
-  setState(() {
-    _isAnalyzing = true;
-    _currentStep = 0;
-  });
-  _loadingFadeController.forward();
-  _rotateController.repeat();
-  await _updatePersistentLoading(true);
+    setState(() {
+      _isAnalyzing = true;
+      _currentStep = 0;
+    });
+    _loadingFadeController.forward();
+    _rotateController.repeat();
+    await _updatePersistentLoading(true);
 
-  await _setStep(0, duration: 800);
-  await _setStep(1, duration: 1000);
-  await _setStep(2, duration: 1200);
+    await _setStep(0, duration: 800);
+    await _setStep(1, duration: 1000);
+    await _setStep(2, duration: 1200);
 
-  try {
-    final ctx = await _getUserContext();
-    final result = await GeminiAnalysisService.generateSalaryInsights(
-      // rawText ist jetzt optional → null = rein marktbasierte Analyse
-      rawText: null,
-      targetJob: targetJob,
-      country: country,
-      userJob: ctx['userJob'],
-      language: ctx['language'],
-    );
+    try {
+      final ctx = await _getUserContext();
+      final result = await GeminiAnalysisService.generateSalaryInsights(
+        // rawText ist jetzt optional → null = rein marktbasierte Analyse
+        rawText: null,
+        targetJob: targetJob,
+        country: country,
+        userJob: ctx['userJob'],
+        language: ctx['language'],
+      );
 
-    await _setStep(3, duration: 800);
-    await _updatePersistentLoading(false);
-    _rotateController.stop();
+      await _setStep(3, duration: 800);
+      await _updatePersistentLoading(false);
+      _rotateController.stop();
 
-    if (!mounted) return;
-    await _loadingFadeController.reverse();
-    setState(() => _isAnalyzing = false);
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SalaryInsightsScreen(
-          insightsResult: result,
-          targetJob: targetJob,
-          country: country,
-        ),
-      ),
-    );
-  } catch (e) {
-    await _updatePersistentLoading(false);
-    _rotateController.stop();
-    if (mounted) {
+      if (!mounted) return;
       await _loadingFadeController.reverse();
       setState(() => _isAnalyzing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${AppTranslation.t('Error')}: $e'),
-          backgroundColor: Colors.redAccent,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SalaryInsightsScreen(
+            insightsResult: result,
+            targetJob: targetJob,
+            country: country,
           ),
-          margin: const EdgeInsets.all(16),
         ),
       );
+    } catch (e) {
+      await _updatePersistentLoading(false);
+      _rotateController.stop();
+      if (mounted) {
+        await _loadingFadeController.reverse();
+        setState(() => _isAnalyzing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${AppTranslation.t('Error')}: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
     }
   }
-}
 
   Future<void> _openChat() async {
     if (!_isPremium) {

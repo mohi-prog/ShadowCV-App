@@ -4,17 +4,26 @@
 // nur serverseitig liegt. Für MVP/Dev ist das hier okay.
 
 class AppConfig {
-  // Claude (Anthropic) API Key
-  // Beantragen unter: https://console.anthropic.com
+  // ── Groq (OpenAI-compatible) API ──
+  static const String groqApiKey =
+      'REDACTED_GROQ_KEY';
+  static const String groqApiUrl =
+      'https://api.groq.com/openai/v1/chat/completions';
+  static const String groqModelFast = 'llama-3.1-8b-instant';
+  static const String groqModelPower = 'llama-3.3-70b-versatile';
+  static const String groqModelVision =
+      'meta-llama/llama-4-scout-17b-16e-instruct';
+
+  // ── Claude (Anthropic) API ──
   static const String claudeApiKey = 'DEIN_CLAUDE_API_KEY_HIER';
   static const String claudeApiUrl = 'https://api.anthropic.com/v1/messages';
   static const String claudeModel = 'claude-opus-4-6';
 
-  // App Tier Preise (für die UI)
+  // ── App Tier Preise (für die UI) ──
   static const double premiumPrice = 19.99;
   static const double careerPrice = 49.99;
 
-  // Firestore Collection Namen
+  // ── Firestore Collection Namen ──
   static const String usersCollection = 'users';
   static const String analysesCollection = 'analyses';
   static const String cvFilesCollection = 'cv_files';

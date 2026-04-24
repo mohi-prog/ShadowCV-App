@@ -6,13 +6,13 @@
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'app_config.dart';
 
 enum AnalysisMode { generalReview, atsOptimization, jobSpecific, customPrompt }
 
 class GeminiAnalysisService {
-  static const String _apiKey =
-      'REDACTED_GROQ_KEY';
-  static const String _url = 'https://api.groq.com/openai/v1/chat/completions';
+  static const String _apiKey = AppConfig.groqApiKey;
+  static const String _url = AppConfig.groqApiUrl;
 
   // ==================== ANALYSE ====================
 
@@ -55,7 +55,7 @@ class GeminiAnalysisService {
               'Authorization': 'Bearer $_apiKey',
             },
             body: jsonEncode({
-              'model': 'llama-3.3-70b-versatile',
+              'model': AppConfig.groqModelPower,
               'messages': [
                 {'role': 'user', 'content': modePrompt},
               ],
@@ -70,8 +70,7 @@ class GeminiAnalysisService {
           );
 
       if (response.statusCode != 200) {
-        throw Exception(
-            'API Error (${response.statusCode}): ${response.body}');
+        throw Exception('API Error (${response.statusCode}): ${response.body}');
       }
 
       final data = jsonDecode(response.body);
@@ -113,7 +112,8 @@ class GeminiAnalysisService {
         'isCV': true,
         'mode': mode.name,
         'score': _clampScore(parsed['score']),
-        'scoreLabel': parsed['scoreLabel'] ??
+        'scoreLabel':
+            parsed['scoreLabel'] ??
             _getScoreLabel(_clampScore(parsed['score'])),
         'summary': parsed['summary'] ?? '',
         'strengths': _toStringList(parsed['strengths']),
@@ -142,7 +142,8 @@ class GeminiAnalysisService {
     String userContext = '';
     if ((userJob != null && userJob.isNotEmpty) ||
         (userGoal != null && userGoal.isNotEmpty)) {
-      userContext = '''
+      userContext =
+          '''
 === USER CONTEXT ===
 - Current profession: ${userJob ?? 'Unknown'}
 - Career goal: ${userGoal ?? 'Unknown'}
@@ -151,7 +152,8 @@ Use this context to make every answer directly relevant to this person's career 
     }
 
     // ─── Wiederverwendbarer CV-Check Block ───
-    final cvCheck = '''
+    final cvCheck =
+        '''
 STEP 1: Is this a real CV/Resume?
 
 A real CV contains MOST of these:
@@ -193,7 +195,8 @@ If YES → continue with your task below.
   "topPriorities": ["The single most impactful change. Be concrete."]
 }''';
 
-    final strictStandardRules = '''
+    final strictStandardRules =
+        '''
 === STRICT RULES ===
 - Score 0-100. Honest: average CVs get 40-60, not 70+
 - scoreLabel: "Poor" (0-30), "Fair" (31-50), "Good" (51-75), "Very Good" (76-90), "Excellent" (91-100)
@@ -363,7 +366,8 @@ $rawText
 - Top Priorities: ${priorities.join(', ')}
 ''';
 
-    final systemPrompt = '''
+    final systemPrompt =
+        '''
 You are an expert CV consultant with deep knowledge of hiring, ATS systems, and career development.
 
 === CV CONTEXT ===
@@ -396,7 +400,7 @@ $customContext
               'Authorization': 'Bearer $_apiKey',
             },
             body: jsonEncode({
-              'model': 'llama-3.1-8b-instant',
+              'model': AppConfig.groqModelFast,
               'messages': [
                 {'role': 'system', 'content': systemPrompt},
                 ...conversationMessages,
@@ -435,7 +439,8 @@ $customContext
         ? '${rawText.substring(0, 6000)}\n\n[... CV text truncated ...]'
         : rawText;
 
-    final prompt = '''
+    final prompt =
+        '''
 You are an expert interview coach with 20 years of experience preparing candidates for top companies.
 
 === YOUR TASK ===
@@ -487,7 +492,7 @@ $trimmedText
               'Authorization': 'Bearer $_apiKey',
             },
             body: jsonEncode({
-              'model': 'llama-3.3-70b-versatile',
+              'model': AppConfig.groqModelPower,
               'messages': [
                 {'role': 'user', 'content': prompt},
               ],
@@ -532,7 +537,8 @@ $trimmedText
         ? '${rawText.substring(0, 6000)}\n\n[... CV text truncated ...]'
         : rawText;
 
-    final prompt = '''
+    final prompt =
+        '''
 You are an expert cover letter writer with 20 years of experience.
 
 === YOUR TASK ===
@@ -568,7 +574,7 @@ $trimmedText
               'Authorization': 'Bearer $_apiKey',
             },
             body: jsonEncode({
-              'model': 'llama-3.3-70b-versatile',
+              'model': AppConfig.groqModelPower,
               'messages': [
                 {'role': 'user', 'content': prompt},
               ],
@@ -596,25 +602,25 @@ $trimmedText
   // ==================== SALARY INSIGHTS ====================
 
   // rawText ist jetzt nullable:
-// - null  → rein marktbasierte Analyse (kein CV vorhanden)
-// - String → CV-gestützte Analyse wie bisher
-static Future<Map<String, dynamic>> generateSalaryInsights({
-  required String? rawText,         // <-- war: required String rawText
-  required String targetJob,
-  required String country,
-  String? userJob,
-  String? language,
-}) async {
-  final lang = language ?? 'English';
-  final hasCV = rawText != null && rawText.trim().length > 50;
+  // - null  → rein marktbasierte Analyse (kein CV vorhanden)
+  // - String → CV-gestützte Analyse wie bisher
+  static Future<Map<String, dynamic>> generateSalaryInsights({
+    required String? rawText, // <-- war: required String rawText
+    required String targetJob,
+    required String country,
+    String? userJob,
+    String? language,
+  }) async {
+    final lang = language ?? 'English';
+    final hasCV = rawText != null && rawText.trim().length > 50;
 
-  // CV-Block nur einfügen wenn tatsächlich vorhanden
-  final cvSection = hasCV
-      ? '''
+    // CV-Block nur einfügen wenn tatsächlich vorhanden
+    final cvSection = hasCV
+        ? '''
 === CANDIDATE CV ===
 ${rawText.length > 6000 ? '${rawText.substring(0, 6000)}\n\n[... CV text truncated ...]' : rawText}
 '''
-      : '''
+        : '''
 === NOTE ===
 No CV was provided. Base your analysis purely on typical market data for "$targetJob" in "$country".
 For experienceYears use a typical mid-level estimate (e.g. 3-5 years).
@@ -623,9 +629,9 @@ For salaryBoosts list general skills that typically boost salary for this role.
 For salaryLimits list common gaps that limit salary for this role.
 ''';
 
-  // Analyse-Anweisung ändert sich je nach CV-Verfügbarkeit
-  final analysisInstruction = hasCV
-      ? '''
+    // Analyse-Anweisung ändert sich je nach CV-Verfügbarkeit
+    final analysisInstruction = hasCV
+        ? '''
 Analyze this CV and provide realistic salary insights for: "$targetJob" in "$country"
 
 Estimate salary based on:
@@ -635,7 +641,7 @@ Estimate salary based on:
 - Career progression shown
 - Industry and location ($country)
 '''
-      : '''
+        : '''
 Provide realistic market salary insights for: "$targetJob" in "$country"
 
 Since no CV was provided:
@@ -644,7 +650,8 @@ Since no CV was provided:
 - Give actionable tips to maximize earnings in this field
 ''';
 
-  final prompt = '''
+    final prompt =
+        '''
 You are a senior compensation analyst and HR expert with deep knowledge of global salary markets.
 
 === YOUR TASK ===
@@ -683,71 +690,80 @@ $analysisInstruction
 $cvSection
 ''';
 
-  try {
-    final response = await http.post(
-      Uri.parse(_url),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
-      },
-      body: jsonEncode({
-        'model': 'llama-3.3-70b-versatile',
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-        'temperature': 0.3,
-        'max_tokens': 2000,
-      }),
-    ).timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => throw Exception('Request timed out. Please try again.'),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse(_url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_apiKey',
+            },
+            body: jsonEncode({
+              'model': AppConfig.groqModelPower,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+              'temperature': 0.3,
+              'max_tokens': 2000,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 60),
+            onTimeout: () =>
+                throw Exception('Request timed out. Please try again.'),
+          );
 
-    if (response.statusCode != 200) {
-      throw Exception('API Error: ${response.body}');
+      if (response.statusCode != 200) {
+        throw Exception('API Error: ${response.body}');
+      }
+
+      final data = jsonDecode(response.body);
+      final text = data['choices'][0]['message']['content'] ?? '';
+      final parsed = _extractJson(text);
+
+      if (parsed == null) {
+        throw Exception('Invalid response format. Please try again.');
+      }
+
+      return parsed;
+    } catch (e) {
+      throw Exception('Salary insights failed: $e');
     }
-
-    final data = jsonDecode(response.body);
-    final text = data['choices'][0]['message']['content'] ?? '';
-    final parsed = _extractJson(text);
-
-    if (parsed == null) {
-      throw Exception('Invalid response format. Please try again.');
-    }
-
-    return parsed;
-  } catch (e) {
-    throw Exception('Salary insights failed: $e');
   }
-}
-/// Gesamt-Feedback nach Abschluss der Simulation.
-/// Nimmt alle Evaluationen und generiert ein konsolidiertes Coaching-Summary.
-static Future<String> generateInterviewSummary({
-  required List<Map<String, dynamic>> evaluations,
-  required String targetJob,
-  String? language,
-}) async {
-  final lang = language ?? 'English';
 
-  // Kompaktes Q&A Zusammenfassung für den Prompt
-  final qaSummary = evaluations.asMap().entries.map((e) {
-    final i = e.key + 1;
-    final eval = e.value;
-    return '''
+  /// Gesamt-Feedback nach Abschluss der Simulation.
+  /// Nimmt alle Evaluationen und generiert ein konsolidiertes Coaching-Summary.
+  static Future<String> generateInterviewSummary({
+    required List<Map<String, dynamic>> evaluations,
+    required String targetJob,
+    String? language,
+  }) async {
+    final lang = language ?? 'English';
+
+    // Kompaktes Q&A Zusammenfassung für den Prompt
+    final qaSummary = evaluations
+        .asMap()
+        .entries
+        .map((e) {
+          final i = e.key + 1;
+          final eval = e.value;
+          return '''
 Q$i [${eval['category']}] Score: ${eval['score']}/10
 Question: ${eval['question']}
 Answer summary: ${(eval['answer'] as String).substring(0, (eval['answer'] as String).length.clamp(0, 200))}
 ''';
-  }).join('\n');
+        })
+        .join('\n');
 
-  final avgScore = evaluations.isEmpty
-      ? 0.0
-      : evaluations
-              .map((e) => (e['score'] as int?) ?? 0)
-              .reduce((a, b) => a + b) /
-          evaluations.length;
+    final avgScore = evaluations.isEmpty
+        ? 0.0
+        : evaluations
+                  .map((e) => (e['score'] as int?) ?? 0)
+                  .reduce((a, b) => a + b) /
+              evaluations.length;
 
-  final prompt = '''
+    final prompt =
+        '''
 You are a senior interview coach reviewing a mock interview session.
 
 === SIMULATION DATA ===
@@ -776,33 +792,35 @@ Write a concise overall performance review in $lang using this structure:
 Keep it under 300 words. Be direct and encouraging.
 ''';
 
-  try {
-    final response = await http.post(
-      Uri.parse(_url),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
-      },
-      body: jsonEncode({
-        'model': 'llama-3.3-70b-versatile',
-        'messages': [
-          {'role': 'user', 'content': prompt},
-        ],
-        'temperature': 0.4,
-        'max_tokens': 800,
-      }),
-    ).timeout(const Duration(seconds: 60));
+    try {
+      final response = await http
+          .post(
+            Uri.parse(_url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_apiKey',
+            },
+            body: jsonEncode({
+              'model': AppConfig.groqModelPower,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+              'temperature': 0.4,
+              'max_tokens': 800,
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
 
-    if (response.statusCode != 200) {
-      throw Exception('API Error: ${response.body}');
+      if (response.statusCode != 200) {
+        throw Exception('API Error: ${response.body}');
+      }
+
+      final data = jsonDecode(response.body);
+      return data['choices'][0]['message']['content'] ?? '';
+    } catch (e) {
+      throw Exception('Summary generation failed: $e');
     }
-
-    final data = jsonDecode(response.body);
-    return data['choices'][0]['message']['content'] ?? '';
-  } catch (e) {
-    throw Exception('Summary generation failed: $e');
   }
-}
   // ==================== REWRITE ====================
 
   static Future<String> rewriteCV(
@@ -871,7 +889,8 @@ Keep it under 300 words. Be direct and encouraging.
         ? '${rawText.substring(0, 6000)}\n\n[... CV text truncated ...]'
         : rawText;
 
-  final prompt = '''
+    final prompt =
+        '''
 You are an expert CV Optimizer. 
 Your goal: Transform a boring CV into a high-impact, professional document WITHOUT inventing facts.
 
@@ -900,6 +919,11 @@ Your goal: Transform a boring CV into a high-impact, professional document WITHO
 ...
 
 Write in $lang. Use ONLY standard hyphens (-) for bullets.
+
+$issuesList
+
+${userContext.isNotEmpty ? '=== USER CONTEXT ===\n$userContext' : ''}
+
 ORIGINAL CV:
 $trimmedText
 ''';
@@ -912,7 +936,7 @@ $trimmedText
               'Authorization': 'Bearer $_apiKey',
             },
             body: jsonEncode({
-              'model': 'llama-3.3-70b-versatile',
+              'model': AppConfig.groqModelPower,
               'messages': [
                 {'role': 'user', 'content': prompt},
               ],
@@ -947,8 +971,9 @@ $trimmedText
 
     // Versuch 2: Aus Markdown Code Block
     try {
-      final codeBlock =
-          RegExp(r'```(?:json)?\s*([\s\S]*?)```').firstMatch(text);
+      final codeBlock = RegExp(
+        r'```(?:json)?\s*([\s\S]*?)```',
+      ).firstMatch(text);
       if (codeBlock != null) {
         return jsonDecode(codeBlock.group(1)!.trim()) as Map<String, dynamic>;
       }
