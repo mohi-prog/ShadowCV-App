@@ -92,4 +92,6 @@
   - Funktion geben, wo man wählen kann ob man ein cv hochladen möchte oder nicht bei interviewprep
   - Die ki soll nicht mehr wie ein bot antworten, sondern wirklich so frage oder so Thema basiert antworten, z.B. in interview prep und interview simulation 
   - So mehr kurzfragen stellen um mehr infos vom Person zu haben, wie in salary insights, damit man dann spezifischer antworten kann
+  - andere alternativen zu qwen code testen die besser sind
 # Probleme / Bugs
+  - Codeänderungen von qwen code wird nicht im code im windsurf umgesetzt und somit kein fortschritt und Änderungen
