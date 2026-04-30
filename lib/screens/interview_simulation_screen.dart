@@ -1,9 +1,15 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shadowcv/services/translation_service.dart';
 import 'package:shadowcv/services/gemini_analysis_service.dart';
 import 'package:shadowcv/services/app_config.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:vibration/vibration.dart';
+import 'package:shadowcv/widgets/aurora_background.dart';
 
 // Zustände der Simulation
 enum _SimPhase { questioning, evaluating, evaluated, completed }
@@ -33,6 +39,36 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
   String _streamedEvaluation = '';
   bool _isStreaming = false;
 
+  // Voice Interaction
+  bool _isListening = false;
+  bool _isLiveSession = false; 
+  double _soundLevel = 0.0;
+  final FlutterTts _flutterTts = FlutterTts();
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  String _lastWords = '';
+  Timer? _silenceTimer;
+
+  // Silence Nudges
+  final List<String> _silenceNudgesDe = [
+    "Ich höre noch zu. Lassen Sie sich ruhig Zeit.",
+    "Alles in Ordnung? Wir können fortfahren, wenn Sie bereit sind.",
+    "Haben Sie meine Frage verstanden oder soll ich sie wiederholen?",
+    "Keine Eile, ich bin gespannt auf Ihre Antwort.",
+  ];
+  final List<String> _silenceNudgesEn = [
+    "I'm still listening. Take your time.",
+    "Everything okay? We can continue when you're ready.",
+    "Did you catch the question, or should I repeat it?",
+    "No rush, I'm interested in your answer.",
+  ];
+  final List<String> _silenceNudgesEs = [
+    "Sigo escuchando. Tómate tu tiempo.",
+    "¿Todo bien? Podemos continuar cuando estés listo.",
+    "¿Entendiste la pregunta o quieres que la repita?",
+    "Sin prisas, me interesa tu respuesta.",
+  ];
+
   // Gespeicherte Ergebnisse: [{question, answer, evaluation, score}]
   final List<Map<String, dynamic>> _evaluations = [];
 
@@ -49,6 +85,7 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
   late Animation<Offset> _entrySlide;
 
   late AnimationController _dotsAnim;
+  late AnimationController _pulseAnim;
 
   // API Config (zentral in AppConfig)
   static const _apiKey = AppConfig.groqApiKey;
@@ -71,6 +108,7 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
   @override
   void initState() {
     super.initState();
+    _initVoice();
 
     _entryAnim = AnimationController(
       vsync: this,
@@ -90,15 +128,200 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
+
+    _pulseAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  Future<void> _initVoice() async {
+    _speechEnabled = await _speechToText.initialize(
+      onError: (error) {
+        print('STT Error: $error');
+        if (_isLiveSession) {
+          setState(() => _isListening = false);
+        }
+      },
+      onStatus: (status) => print('STT Status: $status'),
+    );
+    
+    // TTS Config
+    String ttsLang = 'en-US';
+    if (AppTranslation.currentLang == 'Deutsch') ttsLang = 'de-DE';
+    if (AppTranslation.currentLang == 'Español') ttsLang = 'es-ES';
+
+    await _flutterTts.setLanguage(ttsLang);
+    await _flutterTts.setPitch(1.0);
+    await _flutterTts.setSpeechRate(0.5);
+
+    // Live-Session Handler: Wenn die KI fertig gesprochen hat, automatisch zuhören
+    _flutterTts.setCompletionHandler(() {
+      if (_isLiveSession && _phase == _SimPhase.questioning && mounted) {
+        _startListening();
+      }
+    });
+
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _entryAnim.dispose();
     _dotsAnim.dispose();
+    _pulseAnim.dispose();
     _answerController.dispose();
     _scrollController.dispose();
+    _flutterTts.stop();
+    _speechToText.stop();
     super.dispose();
+  }
+
+  // ── Voice Logic ─────────────────────────────────────────────
+
+  void _resetSilenceTimer() {
+    _silenceTimer?.cancel();
+    if (!_isListening) return;
+
+    _silenceTimer = Timer(const Duration(seconds: 8), () {
+      if (mounted && _isListening && _lastWords.trim().isEmpty) {
+        _handleSilence();
+      }
+    });
+  }
+
+  Future<void> _handleSilence() async {
+    if (!_isListening) return;
+    
+    // Stop listening to speak nudge
+    await _speechToText.stop();
+    if (mounted) setState(() => _isListening = false);
+
+    // Pick a nudge based on language
+    String nudge = '';
+    final lang = AppTranslation.currentLang;
+    final random = DateTime.now().millisecond % 4;
+
+    if (lang == 'Deutsch') {
+      nudge = _silenceNudgesDe[random];
+    } else if (lang == 'Español') {
+      nudge = _silenceNudgesEs[random];
+    } else {
+      nudge = _silenceNudgesEn[random];
+    }
+
+    await _speak(nudge);
+
+    // Wait for nudge to finish (approximate)
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && _phase == _SimPhase.questioning && _isLiveSession) {
+        _startListening();
+      }
+    });
+  }
+
+  Future<void> _speak(String text) async {
+    if (text.isEmpty) return;
+    if (_isListening) {
+      await _speechToText.stop();
+      if (mounted) setState(() => _isListening = false);
+    }
+    await _flutterTts.stop();
+    await _flutterTts.speak(text);
+  }
+
+  Future<void> _speakQuestion() async {
+    final q = _currentQuestion;
+    if (q == null) return;
+    
+    String textToSpeak = '';
+    if (_currentIndex == 0 && widget.prepResult['interviewerIntro'] != null) {
+      textToSpeak += '${widget.prepResult['interviewerIntro']}. ';
+    }
+    
+    if (q['interviewerHook'] != null && q['interviewerHook'].toString().isNotEmpty) {
+      textToSpeak += '${q['interviewerHook']}. ';
+    }
+    
+    textToSpeak += q['question'] ?? '';
+    
+    await _speak(textToSpeak);
+  }
+
+  void _startListening() async {
+    if (!_speechEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppTranslation.t('Speech recognition not available'))),
+      );
+      return;
+    }
+    
+    await _flutterTts.stop(); // Stop speaking before listening
+    
+    if (mounted) {
+      setState(() {
+        _isListening = true;
+        _lastWords = '';
+        _soundLevel = 0.0;
+      });
+    }
+
+    try {
+      if (await Vibration.hasVibrator() ?? false) {
+        Vibration.vibrate(duration: 40);
+      }
+    } catch (_) {}
+
+    String sttLocale = 'en_US';
+    if (AppTranslation.currentLang == 'Deutsch') sttLocale = 'de_DE';
+    if (AppTranslation.currentLang == 'Español') sttLocale = 'es_ES';
+
+    await _speechToText.listen(
+      onResult: _onSpeechResult,
+      onSoundLevelChange: (level) {
+        if (mounted && _isListening) setState(() => _soundLevel = level);
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 10), 
+      partialResults: true,
+      localeId: sttLocale,
+    );
+
+    _resetSilenceTimer();
+  }
+
+  void _stopListening() async {
+    if (!_isListening) return;
+    _silenceTimer?.cancel();
+    await _speechToText.stop();
+    setState(() => _isListening = false);
+    
+    // Kleiner Delay um sicherzugehen dass onSpeechResult fertig ist
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (_lastWords.isNotEmpty && !_isStreaming && _phase == _SimPhase.questioning) {
+        _answerController.text = _lastWords;
+        _submitAnswer();
+      }
+    });
+  }
+
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    if (mounted) {
+      setState(() {
+        _lastWords = result.recognizedWords;
+      });
+      _resetSilenceTimer();
+    }
+
+    // Automatischer Submit wenn finalResult da ist und wir im Live-Modus sind
+    if (result.finalResult && _isLiveSession && !_isStreaming && _phase == _SimPhase.questioning) {
+      if (_lastWords.trim().length > 1) {
+        _silenceTimer?.cancel();
+        if (mounted) setState(() => _isListening = false);
+        _answerController.text = _lastWords;
+        _submitAnswer();
+      }
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────
@@ -180,48 +403,55 @@ class _InterviewSimulationScreenState extends State<InterviewSimulationScreen>
     final category = question['category'] ?? 'General';
     final questionText = question['question'] ?? '';
     final exampleAnswer = question['exampleAnswer'] ?? '';
+    final persona = question['persona'] ?? 'Professional';
+    final theme = question['theme'] ?? 'General';
+    
     final cvContext = widget.rawCvText != null
         ? 'CV Context:\n${widget.rawCvText!.substring(0, widget.rawCvText!.length.clamp(0, 3000))}'
         : 'No CV provided.';
 
-    // Evaluation Prompt – strukturiert aber als Fließtext
+    // Evaluation Prompt – Conversational & Persona-based
     final prompt =
         '''
-You are an expert interview coach evaluating a candidate's response.
+You are acting as an interviewer with a "$persona" persona. 
+You just asked a candidate a question about "$theme" for the role of "${widget.targetJob}".
 
-=== INTERVIEW CONTEXT ===
-Job: "${widget.targetJob}"
-Question Type: $category
-Question: "$questionText"
+=== THE QUESTION YOU ASKED ===
+"$questionText"
 
 === CANDIDATE'S ANSWER ===
 "$answer"
 
-=== REFERENCE ANSWER (for comparison only) ===
+=== REFERENCE ANSWER (for your knowledge) ===
 $exampleAnswer
 
 === $cvContext ===
 
 === YOUR TASK ===
-Evaluate the candidate's answer honestly. Be constructive but direct.
+1. React to the answer naturally as an interviewer would (in $lang).
+2. Provide a score and constructive feedback.
 
-Write your evaluation in $lang using EXACTLY this structure:
+CRITICAL: Your reaction MUST be conversational and bridge to the next point. Use your persona ($persona).
+Example for Friendly: "I love how you handled that team conflict. It shows real maturity."
+Example for Tough: "That's a standard answer. I was looking for more technical depth regarding..."
+
+IMPORTANT: Use the EXACT English headers provided below, but write the CONTENT in $lang.
 
 **Score: X/10**
 
-**✅ What worked well**
-Write 2-3 specific things the candidate did right in their answer.
+**Interviewer's Reaction**
+Write 2-3 sentences.
 
-**⚠️ What was missing**
-Write 2-3 concrete things that would have made this answer stronger.
+**Strengths**
+2-3 bullet points.
 
-**💡 Ideal answer would include**
-Give 2-3 specific points or phrases they should have mentioned, based on the question and job.
+**Improvements**
+2-3 bullet points.
 
-**🎯 One-line coaching tip**
-One actionable sentence they can apply immediately.
+**Pro Coaching Tip**
+One powerful, actionable tip.
 
-Keep the total evaluation under 250 words. Be specific, never generic.
+Keep the total response under 250 words.
 ''';
 
     try {
@@ -288,6 +518,51 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           _phase = _SimPhase.evaluated;
           _isStreaming = false;
         });
+        
+        // Voice Mode: Reaction vorlesen
+        String reaction = '';
+        final reactionRegex = RegExp(r"\*\*Interviewer's Reaction\*\*\n?(.*?)(?=\n\n\*\*|\n\nStrengths|$)", dotAll: true);
+        final reactionMatch = reactionRegex.firstMatch(_streamedEvaluation);
+        if (reactionMatch != null) {
+          reaction = reactionMatch.group(1)?.trim() ?? '';
+        } else {
+           reaction = _streamedEvaluation.split('**').firstWhere((l) => l.trim().length > 10 && !l.contains('Score'), orElse: () => '');
+        }
+
+        if (_isLiveSession) {
+          // Im Live Modus: Reaction sprechen und DIREKT weiter
+          if (_currentIndex + 1 < _totalQuestions) {
+             final nextQ = _questions[_currentIndex + 1];
+             final hook = nextQ['interviewerHook'] ?? '';
+             final qText = nextQ['question'] ?? '';
+             
+             // Wir sprechen Reaction + Hook + Frage in einem Rutsch
+             final fullSpeech = "$reaction. $hook. $qText";
+             
+             await _speak(fullSpeech);
+             
+             // Wir updaten den Index und den State leise im Hintergrund
+             Future.delayed(const Duration(milliseconds: 800), () {
+               if (mounted) {
+                 setState(() {
+                    _currentIndex++;
+                    _phase = _SimPhase.questioning;
+                    _streamedEvaluation = '';
+                    _answerController.clear();
+                    _lastWords = '';
+                 });
+                 // Animation für den Fall dass man gerade doch auf den Chat schaut
+                 _entryAnim.reset();
+                 _entryAnim.forward();
+               }
+             });
+          } else {
+             await _speak("$reaction. ${AppTranslation.t('We have reached the end of the interview. Thank you for your time.')}");
+             Future.delayed(const Duration(seconds: 2), () {
+               if (mounted) _nextQuestion();
+             });
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -304,6 +579,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
   /// Zur nächsten Frage weitergehen oder Simulation abschließen
   Future<void> _nextQuestion() async {
     _answerController.clear();
+    _lastWords = '';
 
     if (_currentIndex + 1 >= _totalQuestions) {
       // Alle Fragen durch → Summary laden
@@ -321,6 +597,10 @@ Keep the total evaluation under 250 words. Be specific, never generic.
       // Sanfte Übergangs-Animation
       _entryAnim.reset();
       _entryAnim.forward();
+      
+      if (_isLiveSession) {
+        _speakQuestion();
+      }
     }
   }
 
@@ -351,39 +631,173 @@ Keep the total evaluation under 250 words. Be specific, never generic.
   // ── Build ──────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    AuroraMode currentMode = AuroraMode.home;
+    if (_isStreaming) {
+      currentMode = AuroraMode.analyzing;
+    } else if (_phase == _SimPhase.completed && _evaluations.isNotEmpty) {
+       final avg = _evaluations.map((e) => (e['score'] as int?) ?? 0).reduce((a, b) => a + b) / _evaluations.length;
+       currentMode = AuroraBackground.fromScore((avg * 10).round());
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF050505),
-      body: Stack(
-        children: [
-          // Hintergrund-Gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: const Alignment(0, -0.6),
-                radius: 1.2,
-                colors: [
-                  Colors.deepPurpleAccent.withOpacity(0.1),
-                  Colors.transparent,
+      body: AuroraBackground(
+        mode: currentMode,
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildAppBar(),
+                  if (!_isLiveSession && _phase != _SimPhase.completed) _buildProgressBar(),
+                  Expanded(
+                    child: _phase == _SimPhase.completed
+                        ? _buildCompletedView()
+                        : _isLiveSession 
+                          ? _buildLiveView()
+                          : _buildSimulationView(),
+                  ),
+                  if (!_isLiveSession && _phase != _SimPhase.completed) _buildBottomInput(),
                 ],
               ),
             ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                _buildAppBar(),
-                if (_phase != _SimPhase.completed) _buildProgressBar(),
-                Expanded(
-                  child: _phase == _SimPhase.completed
-                      ? _buildCompletedView()
-                      : _buildSimulationView(),
-                ),
-                if (_phase != _SimPhase.completed) _buildBottomInput(),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildBackground() {
+     return const SizedBox.shrink();
+  }
+
+  Color _getPersonaColor(String persona) {
+    final p = persona.toLowerCase();
+    if (p.contains('friendly') || p.contains('casual')) return Colors.green;
+    if (p.contains('tough') || p.contains('stress') || p.contains('challenging')) return Colors.orangeAccent;
+    if (p.contains('technical')) return Colors.cyanAccent;
+    return Colors.blueAccent; // Default Professional
+  }
+
+  // ── Live View (ChatGPT Style) ──────────────────────────────
+  Widget _buildLiveView() {
+    final persona = _currentQuestion?['persona'] ?? 'Professional';
+    final personaColor = _getPersonaColor(persona);
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Spacer(),
+        // Die zentrale Animation (Aura/Wave)
+        Center(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Äußere pulsierende Ringe
+              ...List.generate(3, (i) {
+                return AnimatedBuilder(
+                  animation: _pulseAnim,
+                  builder: (context, child) {
+                    double val = (_pulseAnim.value + (i * 0.33)) % 1.0;
+                    // Reagiert auf Lautstärke:
+                    double volumeBoost = _isListening ? (_soundLevel.abs() * 0.05) : 0;
+                    double scale = (1.0 + (val * 1.8)) + volumeBoost;
+                    double opacity = (1.0 - val) * 0.25;
+                    
+                    if (_isStreaming) opacity *= 0.4;
+                    
+                    return Container(
+                      width: 130 * scale,
+                      height: 130 * scale,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: personaColor.withOpacity(opacity),
+                          width: 1.5 + volumeBoost * 2,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }),
+              
+              // Der Kern
+              AnimatedBuilder(
+                animation: _pulseAnim,
+                builder: (context, child) {
+                  double volumeEffect = _isListening ? (_soundLevel.abs() * 0.8) : 0;
+                  return Container(
+                    width: 120 + volumeEffect,
+                    height: 120 + volumeEffect,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          _isListening ? personaColor : personaColor.withOpacity(0.5),
+                          personaColor.withOpacity(0),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: personaColor.withOpacity(_isListening ? 0.6 : 0.2),
+                          blurRadius: 40 + volumeEffect,
+                          spreadRadius: 10 + volumeEffect / 2,
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Icon(
+                        _isStreaming ? Icons.auto_awesome : (_isListening ? Icons.mic_rounded : Icons.graphic_eq_rounded),
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        
+        // Status Text (dezent unten)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 40),
+          child: Column(
+            children: [
+              Text(
+                _isStreaming 
+                  ? AppTranslation.t('Thinking...') 
+                  : (_isListening ? AppTranslation.t('Listening...') : AppTranslation.t('Interviewer Speaking')),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Boldo',
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_isListening && _lastWords.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    _lastWords,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.3),
+                      fontSize: 12,
+                      fontFamily: 'Boldo',
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -435,10 +849,63 @@ Keep the total evaluation under 250 words. Be specific, never generic.
               ],
             ),
           ),
+          
+          // Live Toggle
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isLiveSession = !_isLiveSession;
+                if (_isLiveSession) {
+                  _speakQuestion();
+                } else {
+                  _flutterTts.stop();
+                  _speechToText.stop();
+                  _isListening = false;
+                }
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isLiveSession 
+                  ? Colors.redAccent.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _isLiveSession 
+                    ? Colors.redAccent.withOpacity(0.5)
+                    : Colors.white.withOpacity(0.1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isLiveSession ? Icons.sensors_rounded : Icons.keyboard_rounded,
+                    color: _isLiveSession ? Colors.redAccent : Colors.white60,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _isLiveSession ? 'LIVE' : 'CHAT',
+                    style: TextStyle(
+                      color: _isLiveSession ? Colors.redAccent : Colors.white60,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Boldo',
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
           // Fragen-Zähler
           if (_phase != _SimPhase.completed)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.deepPurpleAccent.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
@@ -447,7 +914,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 ),
               ),
               child: Text(
-                '${_currentIndex + 1} / $_totalQuestions',
+                '${_currentIndex + 1}/${_totalQuestions}',
                 style: const TextStyle(
                   color: Colors.deepPurpleAccent,
                   fontSize: 12,
@@ -473,9 +940,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
             child: LinearProgressIndicator(
               value: _progress,
               backgroundColor: Colors.white.withOpacity(0.06),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                Colors.deepPurpleAccent,
-              ),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurpleAccent),
               minHeight: 4,
             ),
           ),
@@ -492,8 +957,14 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     final category = question['category'] ?? 'General';
     final questionText = question['question'] ?? '';
     final whyAsked = question['whyAsked'] ?? '';
+    final hook = question['interviewerHook'] ?? '';
+    final theme = question['theme'] ?? '';
+    final persona = question['persona'] ?? 'Professional';
+    
     final color = _getCategoryColor(category);
     final icon = _getCategoryIcon(category);
+
+    final intro = widget.prepResult['interviewerIntro'] as String?;
 
     return FadeTransition(
       opacity: _entryFade,
@@ -503,8 +974,36 @@ Keep the total evaluation under 250 words. Be specific, never generic.
           controller: _scrollController,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
           children: [
+            // Intro message (only on first question)
+            if (_currentIndex == 0 && intro != null && intro.isNotEmpty) ...[
+              _buildInterviewerSpeechBubble(intro),
+              const SizedBox(height: 24),
+            ],
+
+            // Theme Label
+            if (theme.isNotEmpty)
+               Padding(
+                padding: const EdgeInsets.only(bottom: 12, left: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.label_important_outline_rounded, color: Colors.white38, size: 14),
+                    const SizedBox(width: 8),
+                    Text(
+                      theme.toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Boldo',
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Fragen-Card
-            _buildQuestionCard(category, questionText, whyAsked, color, icon),
+            _buildQuestionCard(category, questionText, whyAsked, hook, color, icon, persona),
             const SizedBox(height: 20),
 
             // User-Antwort (nach Submit sichtbar)
@@ -541,12 +1040,66 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     );
   }
 
+  Widget _buildInterviewerSpeechBubble(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.85,
+        ),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+            bottomLeft: Radius.circular(4),
+            bottomRight: Radius.circular(20),
+          ),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.record_voice_over_rounded, color: Colors.deepPurpleAccent, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  AppTranslation.t('Interviewer').toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.deepPurpleAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Boldo',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              text,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontFamily: 'Boldo',
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildQuestionCard(
     String category,
     String questionText,
     String whyAsked,
+    String hook,
     Color color,
     IconData icon,
+    String persona,
   ) {
     return Container(
       width: double.infinity,
@@ -586,43 +1139,47 @@ Keep the total evaluation under 250 words. Be specific, never generic.
                 ),
               ),
               const Spacer(),
-              // Interviewer Badge
+              // Persona Badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.smart_toy_rounded,
-                      color: Colors.white54,
-                      size: 12,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      AppTranslation.t('Interviewer'),
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 10,
-                        fontFamily: 'Boldo',
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  persona,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.4),
+                    fontSize: 10,
+                    fontFamily: 'Boldo',
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 18),
 
+          // Hook
+          if (hook.isNotEmpty) ...[
+            Text(
+              hook,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.6),
+                fontSize: 14,
+                fontFamily: 'Boldo',
+                height: 1.5,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+
           // Frage
           Text(
             questionText,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 17,
+              fontSize: 18,
               fontWeight: FontWeight.w700,
               fontFamily: 'Boldo',
               height: 1.5,
@@ -815,20 +1372,26 @@ Keep the total evaluation under 250 words. Be specific, never generic.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: lines.map((line) {
-        // Bold Header (beginnt mit **)
-        if (line.startsWith('**') && line.endsWith('**')) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 4),
-            child: Text(
-              line.replaceAll('**', ''),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Boldo',
+        final trimmedLine = line.trim();
+        // Bold Header (z.B. **Header** oder **Header:**)
+        if (trimmedLine.startsWith('**') && trimmedLine.contains('**', 2)) {
+          // Wenn die Zeile fast nur aus dem Header besteht (z.B. **Strengths**)
+          // Wir prüfen ob nach dem schließenden ** noch viel Text kommt
+          final lastBoldIndex = trimmedLine.lastIndexOf('**');
+          if (lastBoldIndex != -1 && (trimmedLine.length - lastBoldIndex) < 5) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Text(
+                trimmedLine.replaceAll('**', '').replaceAll(':', ''),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Boldo',
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
         // Inline Bold
         if (line.contains('**')) {
@@ -994,7 +1557,7 @@ Keep the total evaluation under 250 words. Be specific, never generic.
             child: Row(
               children: [
                 const Icon(
-                  Icons.mic_rounded,
+                  Icons.keyboard_rounded,
                   color: Colors.deepPurpleAccent,
                   size: 14,
                 ),

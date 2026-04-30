@@ -854,6 +854,86 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
+  Future<String?> _askForCVOption() async {
+    String? existingCvText = _lastAnalysis?['rawText'];
+    String? existingFileName = _lastAnalysis?['fileName'];
+
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          border: Border.all(color: Colors.white.withOpacity(0.1)),
+        ),
+        child: SingleChildScrollView(
+          child: 
+         Column(
+          
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppTranslation.t('Enhance with CV?'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Boldo',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              AppTranslation.t('Adding your CV makes results much more personalized.'),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 14,
+                fontFamily: 'Boldo',
+              ),
+            ),
+            const SizedBox(height: 24),
+            if (existingCvText != null) ...[
+              _buildUploadOption(
+                icon: Icons.history_rounded,
+                title: AppTranslation.t('Use existing CV'),
+                subtitle: existingFileName ?? 'Last analyzed CV',
+                color: Colors.blueAccent,
+                onTap: () => Navigator.pop(context, existingCvText),
+              ),
+              const SizedBox(height: 12),
+            ],
+            _buildUploadOption(
+              icon: Icons.upload_file_rounded,
+              title: AppTranslation.t('Upload new CV'),
+              subtitle: AppTranslation.t('Select a PDF or image'),
+              color: Colors.deepPurpleAccent,
+              onTap: () async {
+                final source = await _showUploadSourceSheet();
+                if (source != null) {
+                  final picked = await _pickTextForSource(source);
+                  if (picked != null && mounted) {
+                    Navigator.pop(context, picked.text);
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildUploadOption(
+              icon: Icons.arrow_forward_rounded,
+              title: AppTranslation.t('Continue without CV'),
+              subtitle: AppTranslation.t('Use general market data'),
+              color: Colors.white38,
+              onTap: () => Navigator.pop(context, 'NONE'),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    ));
+  }
+
   Future<void> _startInterviewPrep() async {
     if (!_isPremium) {
       await Navigator.push(
@@ -863,18 +943,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return;
     }
 
-    String? targetJob = await _showJobInputDialog();
-    if (targetJob == null || targetJob.isEmpty || !mounted) return;
+    final input = await _showJobInputDialog();
+    if (input == null || !mounted) return;
 
-    String rawText = _lastAnalysis?['rawText'] ?? '';
+    final targetJob = input['job'] ?? '';
+    if (targetJob.isEmpty) return;
 
-    if (rawText.isEmpty) {
-      final source = await _showUploadSourceSheet();
-      if (source == null || !mounted) return;
-      final picked = await _pickTextForSource(source);
-      if (picked == null || !mounted) return;
-      rawText = picked.text;
-    }
+    // Ask for CV (Optional)
+    final cvSelection = await _askForCVOption();
+    if (cvSelection == null || !mounted) return;
+    
+    final rawText = cvSelection == 'NONE' ? null : cvSelection;
 
     setState(() {
       _isAnalyzing = true;
@@ -893,6 +972,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final result = await GeminiAnalysisService.generateInterviewPrep(
         rawText: rawText,
         targetJob: targetJob,
+        experience: input['experience'],
+        level: input['level'],
         userJob: ctx['userJob'],
         userGoal: ctx['userGoal'],
         language: ctx['language'],
@@ -910,7 +991,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         context,
         MaterialPageRoute(
           builder: (_) =>
-              InterviewPrepScreen(prepResult: result, targetJob: targetJob!),
+              InterviewPrepScreen(prepResult: result, targetJob: targetJob),
         ),
       );
     } catch (e) {
@@ -1029,13 +1110,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       return;
     }
 
-    // Nur Job + Country – kein CV-Upload mehr
     final input = await _showSalaryInputDialog();
     if (input == null || !mounted) return;
 
     final targetJob = input['job'] ?? '';
     final country = input['country'] ?? '';
     if (targetJob.isEmpty || country.isEmpty) return;
+
+    // Ask for CV (Optional)
+    final cvSelection = await _askForCVOption();
+    if (cvSelection == null || !mounted) return;
+    
+    final rawText = cvSelection == 'NONE' ? null : cvSelection;
 
     setState(() {
       _isAnalyzing = true;
@@ -1052,10 +1138,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     try {
       final ctx = await _getUserContext();
       final result = await GeminiAnalysisService.generateSalaryInsights(
-        // rawText ist jetzt optional → null = rein marktbasierte Analyse
-        rawText: null,
+        rawText: rawText,
         targetJob: targetJob,
         country: country,
+        experience: input['experience'],
+        level: input['level'],
         userJob: ctx['userJob'],
         language: ctx['language'],
       );
@@ -1131,92 +1218,100 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   // ==================== DIALOGS ====================
 
-  Future<String?> _showJobInputDialog() async {
+  Future<Map<String, String>?> _showJobInputDialog() async {
     final controller = TextEditingController();
-    return showDialog<String>(
+    final expController = TextEditingController();
+    String selectedLevel = 'Mid-Level';
+    final levels = ['Junior', 'Mid-Level', 'Senior', 'Lead'];
+
+    return showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          AppTranslation.t('Interview Prep'),
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontFamily: 'Boldo',
-            fontSize: 18,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(
+            AppTranslation.t('Interview Prep'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Boldo',
+              fontSize: 18,
+            ),
           ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppTranslation.t('Which role are you interviewing for?'),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontFamily: 'Boldo',
-                fontSize: 13,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDialogLabel(AppTranslation.t('Which role are you interviewing for?')),
+                const SizedBox(height: 8),
+                _buildDialogField(controller, AppTranslation.t('e.g. Senior Flutter Developer'), Colors.deepPurpleAccent),
+                const SizedBox(height: 16),
+                _buildDialogLabel(AppTranslation.t('Years of Experience')),
+                const SizedBox(height: 8),
+                _buildDialogField(expController, AppTranslation.t('e.g. 5'), Colors.deepPurpleAccent, isNumber: true),
+                const SizedBox(height: 16),
+                _buildDialogLabel(AppTranslation.t('Experience Level')),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: levels.map((level) {
+                    final isSelected = selectedLevel == level;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedLevel = level),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.deepPurpleAccent.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: isSelected ? Colors.deepPurpleAccent : Colors.white.withOpacity(0.08)),
+                        ),
+                        child: Text(
+                          AppTranslation.t(level),
+                          style: TextStyle(
+                            color: isSelected ? Colors.deepPurpleAccent : Colors.white.withOpacity(0.4),
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
+                            fontFamily: 'Boldo',
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                AppTranslation.t('Cancel'),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.3),
+                  fontFamily: 'Boldo',
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white, fontFamily: 'Boldo'),
-              decoration: InputDecoration(
-                hintText: AppTranslation.t(
-                  'e.g. Senior Flutter Developer at Google',
-                ),
-                hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.25),
+            TextButton(
+              onPressed: () => Navigator.pop(context, {
+                'job': controller.text.trim(),
+                'experience': expController.text.trim(),
+                'level': selectedLevel,
+              }),
+              child: Text(
+                AppTranslation.t('Generate'),
+                style: const TextStyle(
+                  color: Colors.deepPurpleAccent,
+                  fontWeight: FontWeight.w900,
                   fontFamily: 'Boldo',
-                  fontSize: 13,
-                ),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: Colors.deepPurpleAccent,
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppTranslation.t('Cancel'),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
-                fontFamily: 'Boldo',
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(
-              AppTranslation.t('Generate'),
-              style: const TextStyle(
-                color: Colors.deepPurpleAccent,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Boldo',
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1390,131 +1485,147 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Future<Map<String, String>?> _showSalaryInputDialog() async {
     final jobController = TextEditingController();
     final countryController = TextEditingController();
+    final expController = TextEditingController();
+    String selectedLevel = 'Mid-Level';
+    final levels = ['Junior', 'Mid-Level', 'Senior', 'Lead'];
 
     return showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(
-          AppTranslation.t('Salary Insights'),
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontFamily: 'Boldo',
-            fontSize: 18,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A1A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(
+            AppTranslation.t('Salary Insights'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Boldo',
+              fontSize: 18,
+            ),
           ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppTranslation.t('Target Job Title'),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontFamily: 'Boldo',
-                fontSize: 13,
-              ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDialogLabel(AppTranslation.t('Target Job Title')),
+                const SizedBox(height: 8),
+                _buildDialogField(jobController, AppTranslation.t('e.g. Senior Developer'), Colors.greenAccent),
+                const SizedBox(height: 16),
+                _buildDialogLabel(AppTranslation.t('Country')),
+                const SizedBox(height: 8),
+                _buildDialogField(countryController, AppTranslation.t('e.g. Germany'), Colors.greenAccent),
+                const SizedBox(height: 16),
+                _buildDialogLabel(AppTranslation.t('Years of Experience')),
+                const SizedBox(height: 8),
+                _buildDialogField(expController, AppTranslation.t('e.g. 5'), Colors.greenAccent, isNumber: true),
+                const SizedBox(height: 16),
+                _buildDialogLabel(AppTranslation.t('Experience Level')),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: levels.map((level) {
+                    final isSelected = selectedLevel == level;
+                    return GestureDetector(
+                      onTap: () => setDialogState(() => selectedLevel = level),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.greenAccent.withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: isSelected ? Colors.greenAccent : Colors.white.withOpacity(0.08)),
+                        ),
+                        child: Text(
+                          AppTranslation.t(level),
+                          style: TextStyle(
+                            color: isSelected ? Colors.greenAccent : Colors.white.withOpacity(0.4),
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
+                            fontFamily: 'Boldo',
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: jobController,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white, fontFamily: 'Boldo'),
-              decoration: InputDecoration(
-                hintText: AppTranslation.t('e.g. Senior Developer'),
-                hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.25),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                AppTranslation.t('Cancel'),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.3),
                   fontFamily: 'Boldo',
-                  fontSize: 13,
-                ),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: Colors.greenAccent,
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              AppTranslation.t('Country'),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontFamily: 'Boldo',
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: countryController,
-              style: const TextStyle(color: Colors.white, fontFamily: 'Boldo'),
-              decoration: InputDecoration(
-                hintText: AppTranslation.t('e.g. Germany, USA, UK'),
-                hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.25),
+            TextButton(
+              onPressed: () => Navigator.pop(context, {
+                'job': jobController.text.trim(),
+                'country': countryController.text.trim(),
+                'experience': expController.text.trim(),
+                'level': selectedLevel,
+              }),
+              child: Text(
+                AppTranslation.t('Analyze'),
+                style: const TextStyle(
+                  color: Colors.greenAccent,
+                  fontWeight: FontWeight.w900,
                   fontFamily: 'Boldo',
-                  fontSize: 13,
-                ),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: Colors.greenAccent,
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              AppTranslation.t('Cancel'),
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.3),
-                fontFamily: 'Boldo',
-              ),
-            ),
+      ),
+    );
+  }
+
+  Widget _buildDialogLabel(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: Colors.white.withOpacity(0.5),
+        fontFamily: 'Boldo',
+        fontSize: 12,
+      ),
+    );
+  }
+
+  Widget _buildDialogField(TextEditingController controller, String hint, Color color, {bool isNumber = false}) {
+    return TextField(
+      controller: controller,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(color: Colors.white, fontFamily: 'Boldo', fontSize: 13),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: Colors.white.withOpacity(0.25),
+          fontFamily: 'Boldo',
+          fontSize: 13,
+        ),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: color,
+            width: 1.5,
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, {
-              'job': jobController.text.trim(),
-              'country': countryController.text.trim(),
-            }),
-            child: Text(
-              AppTranslation.t('Analyze'),
-              style: const TextStyle(
-                color: Colors.greenAccent,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Boldo',
-              ),
-            ),
-          ),
-        ],
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }

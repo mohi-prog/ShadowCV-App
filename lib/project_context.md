@@ -83,15 +83,21 @@
   - bei custom prompt modi sehr promptbasiert antworten
   - salary insights basic machen, so dass man einfach nur seinen job eingeben kann und dann bekommt man eine analyse
   - interview prep erweitern, indem wir eine echte Interview Simulation mit KI durchführen
+  - interview simulation verbessert, nicht mehr so wie ein bot
+  - So mehr kurzfragen stellen um mehr infos vom Person zu haben, wie in salary insights, damit man dann spezifischer antworten kann
+  - bei salary insights und interview prep screens nach dem man diese kurzfragen beantwortet und eingetragen hat, dann soll man entscheiden können ob man ein cv hochladen möchte oder nicht und basiert darauf dann antworten und auch die ki verbessern, dass es besser ist
+  - Sprechfunktion in interview simulation
+  - selber die ki anpassen
+
+
 - # Offene Tasks:
   - homescreen besser gestalten und auch übersichtlicher gestalten
   - push notifications später implementieren
   - Linkedin erweiterung
-  - Sprechfunktion in interview simulation
   - rewrite result screen die export pdf seite besser gestalten, kreativer und besser
-  - Funktion geben, wo man wählen kann ob man ein cv hochladen möchte oder nicht bei interviewprep
-  - Die ki soll nicht mehr wie ein bot antworten, sondern wirklich so frage oder so Thema basiert antworten, z.B. in interview prep und interview simulation 
-  - So mehr kurzfragen stellen um mehr infos vom Person zu haben, wie in salary insights, damit man dann spezifischer antworten kann
-  - andere alternativen zu qwen code testen die besser sind
+  - Alles einmal in der app für texte am ende übersetzen, sodass wenn man auf der Sprache ist dann die ganze app auf dieser sprache ist
+  - Es soll überall Fehlermeldungen geben, also halt wenn etwas nicht funktioniert, dann soll eine Fehlermeldung angezeigt werden, damit die App nicht crasht und  gutes design  und überall gleich 
+  - Stripe Payment System implementieren
+  
 # Probleme / Bugs
-  - Codeänderungen von qwen code wird nicht im code im windsurf umgesetzt und somit kein fortschritt und Änderungen
+  - diese freie Analysen übrig bei der free version updated nicht direkt wenn ich die analyse durchgeführt habe und zu homescreen wieder gehe steht immernoch die vorherige zahl, nur im homescreen updated es nicht direkt im profilscreen schon und die freie analysen übrig card verschwindet nicht direkt wenn ich zu premium wechsle, kann aber auch sei dass wenn ich echte stripe verbindung und so einbaue dann es nicht so ist und es anders gestalten, anders schreiben

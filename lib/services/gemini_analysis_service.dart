@@ -428,59 +428,87 @@ $customContext
   // ==================== INTERVIEW PREP ====================
 
   static Future<Map<String, dynamic>> generateInterviewPrep({
-    required String rawText,
+    required String? rawText,
     required String targetJob,
+    String? experience,
+    String? level,
     String? userJob,
     String? userGoal,
     String? language,
   }) async {
     final lang = language ?? 'English';
-    final trimmedText = rawText.length > 6000
-        ? '${rawText.substring(0, 6000)}\n\n[... CV text truncated ...]'
-        : rawText;
+    final hasCV = rawText != null && rawText.trim().length > 50;
+
+    final trimmedText = hasCV
+        ? (rawText!.length > 6000
+              ? '${rawText.substring(0, 6000)}\n\n[... CV text truncated ...]'
+              : rawText)
+        : null;
 
     final prompt =
         '''
-You are an expert interview coach with 20 years of experience preparing candidates for top companies.
+You are an expert interview coach and senior recruiter with 20 years of experience.
+Your goal is to prepare a candidate for an interview for the role: "$targetJob".
+
+=== CANDIDATE CONTEXT ===
+- Target Job: $targetJob
+${experience != null ? '- Years of Experience: $experience' : ''}
+${level != null ? '- Experience Level: $level' : ''}
+${hasCV ? '' : '- NOTE: No CV provided. Use the context above and standard industry expectations for this role.'}
+
+=== INTERVIEW STRATEGY ===
+Create a natural, high-stakes yet supportive interview flow. 
+AVOID repetitive "bot-like" patterns. Do not start every question with "Can you tell me..." or "Looking at your CV...".
+Vary the sentence structure significantly. Use a mix of:
+- Direct technical questions.
+- Behavioral "What if" scenarios.
+- Reflective questions about past decisions.
+- Challenging follow-ups.
+
+Think in "Themes" (e.g., "The Opener", "Technical Deep Dive", "Soft Skills / Culture Fit", "Future Vision").
+The Themes should be varied and short (1-2 words max).
 
 === YOUR TASK ===
-Generate exactly 10 highly personalized interview questions for this candidate applying for: "$targetJob"
-Questions MUST be based on actual CV content – reference real job titles, companies, skills, experiences.
-
-=== CATEGORIES ===
-- "Behavioral" (2-3): based on past experiences from CV
-- "Technical" (2-3): based on skills listed in CV
-- "Motivational" (2): why this role, why this company
-- "Situational" (2-3): hypothetical scenarios relevant to the role
+Generate exactly 10 highly personalized, DIVERSE interview questions.
+${hasCV ? 'Base the questions on the candidate\'s CV and the target role.' : 'Base the questions on the target role and the provided experience level.'}
+Every question must feel like it\'s part of a real, organic conversation.
 
 === FOR EACH QUESTION ===
-1. Reference something SPECIFIC from the CV
-2. STAR method example answer based on CV facts
-3. One "Pro Tip"
+1. **Theme**: The broad topic.
+2. **Context/Hook**: A natural lead-in. Make it sound like a human interviewer connecting ideas (e.g., "That leads me to...", "I was curious about...", "One thing that stood out in your profile was...").
+3. **Question**: The actual question. Keep it concise and impactful.
+4. **Why Asked**: Why this specific question matters for this job.
+5. **Example Answer**: A high-quality STAR method answer ${hasCV ? 'using facts from their CV.' : 'that a top candidate at this level would give.'}
+6. **Pro Tip**: A coaching tip for this specific question.
+7. **Interviewer Persona**: How should the interviewer sound? (Vary between: "Analytical", "Warm but firm", "Curious", "Challenging", "Visionary").
 
 === STRICT RULES ===
-- No generic questions without CV personalization
-- Write everything in $lang
-- Respond ONLY with valid JSON
+- ${hasCV ? 'Use the candidate\'s actual company names, job titles, and specific projects from the CV.' : 'Do not invent a specific personal history, but use industry-standard scenarios for this role.'}
+- Write everything in $lang.
+- Ensure each question feels distinct from the others in tone and style.
+- Respond ONLY with valid JSON.
 
 === JSON FORMAT ===
 {
   "targetJob": "$targetJob",
+  "interviewerIntro": "A warm, professional welcome message (30-50 words) in $lang that sets a natural tone.",
   "totalQuestions": 10,
   "questions": [
     {
       "id": 1,
+      "theme": "The Opener",
       "category": "Behavioral",
-      "question": "Personalized question referencing specific CV content",
-      "whyAsked": "Brief explanation",
-      "exampleAnswer": "STAR method answer using CV facts",
-      "proTip": "One specific tip"
+      "interviewerHook": "...",
+      "question": "...",
+      "whyAsked": "...",
+      "exampleAnswer": "...",
+      "proTip": "...",
+      "persona": "Warm but firm"
     }
   ]
 }
 
-=== CANDIDATE CV ===
-$trimmedText
+${hasCV ? '=== CANDIDATE CV ===\n$trimmedText' : ''}
 ''';
 
     try {
@@ -605,9 +633,11 @@ $trimmedText
   // - null  → rein marktbasierte Analyse (kein CV vorhanden)
   // - String → CV-gestützte Analyse wie bisher
   static Future<Map<String, dynamic>> generateSalaryInsights({
-    required String? rawText, // <-- war: required String rawText
+    required String? rawText,
     required String targetJob,
     required String country,
+    String? experience,
+    String? level,
     String? userJob,
     String? language,
   }) async {
@@ -622,11 +652,11 @@ ${rawText.length > 6000 ? '${rawText.substring(0, 6000)}\n\n[... CV text truncat
 '''
         : '''
 === NOTE ===
-No CV was provided. Base your analysis purely on typical market data for "$targetJob" in "$country".
-For experienceYears use a typical mid-level estimate (e.g. 3-5 years).
-For candidateLevel use "Market Average".
-For salaryBoosts list general skills that typically boost salary for this role.
-For salaryLimits list common gaps that limit salary for this role.
+No CV was provided. Analysis is based on the provided profile:
+- Target Job: $targetJob
+- Location: $country
+- Provided Experience: ${experience ?? 'Not specified'}
+- Provided Level: ${level ?? 'Mid-Level'}
 ''';
 
     // Analyse-Anweisung ändert sich je nach CV-Verfügbarkeit
@@ -644,10 +674,11 @@ Estimate salary based on:
         : '''
 Provide realistic market salary insights for: "$targetJob" in "$country"
 
-Since no CV was provided:
-- Use typical market ranges for this role in $country
-- Describe what generally boosts or limits salary for this role
-- Give actionable tips to maximize earnings in this field
+Candidate Profile:
+- Experience: ${experience ?? '3-5'} years
+- Level: ${level ?? 'Mid-Level'}
+
+Use typical market ranges for this role in $country.
 ''';
 
     final prompt =
@@ -656,6 +687,12 @@ You are a senior compensation analyst and HR expert with deep knowledge of globa
 
 === YOUR TASK ===
 $analysisInstruction
+
+=== PROFILE CONTEXT ===
+- Job: $targetJob
+- Country: $country
+- Exp (if provided): $experience
+- Level (if provided): $level
 
 === STRICT RULES ===
 - Be realistic and specific to $country market
@@ -672,8 +709,8 @@ $analysisInstruction
   "salaryMid": 60000,
   "salaryMax": 75000,
   "marketAverage": 58000,
-  "candidateLevel": "Mid-Level",
-  "experienceYears": 4,
+  "candidateLevel": "${level ?? 'Mid-Level'}",
+  "experienceYears": ${int.tryParse(experience ?? '') ?? 5},
   "salaryBoosts": [
     "Skill or experience that increases salary for this role"
   ],
@@ -686,6 +723,7 @@ $analysisInstruction
   "marketComparison": "above/below/at market",
   "summary": "2-3 sentences summarizing the salary analysis"
 }
+In Summary say also, how much is left clear after taxes, insurance and other deductions etc. in the $country
 
 $cvSection
 ''';
