@@ -15,23 +15,59 @@ import 'services/translation_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 
+import 'package:shadowcv/services/notification_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Muss initialisiert sein, falls du hier auf Firebase/Datenbank zugreifen willst
+  await Firebase.initializeApp();
+  print("Handling a background message: ${message.messageId}");
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await GoogleAuthService.initialize();
-  debugPaintSizeEnabled = false;
-
-  await AppTranslation.initLanguage();
-  await PremiumService.initialize();
+  
+  // Core Services
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    
+    // Background Message Handler registrieren
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint("Firebase Init Error: $e");
+  }
 
   final prefs = await SharedPreferences.getInstance();
-  final skipSplash = prefs.getBool('skip_splash_once') ?? false;
 
+  // Background Initializations (non-blocking)
+  _initServices();
+
+  final skipSplash = prefs.getBool('skip_splash_once') ?? false;
   if (skipSplash) {
     await prefs.remove('skip_splash_once');
   }
 
-  runApp( ProviderScope(child: MyApp(skipSplash: skipSplash)));
+  runApp(ProviderScope(child: MyApp(skipSplash: skipSplash)));
+}
+
+Future<void> _initServices() async {
+  try {
+    // Notification Service
+    final notificationService = NotificationService();
+    await notificationService.init();
+    
+    // Plant Erinnerungen alle 2 Tage um 12:00 Uhr
+    await notificationService.scheduleBiDailyReminders();
+
+    await GoogleAuthService.initialize();
+    await AppTranslation.initLanguage();
+    await PremiumService.initialize();
+    
+    debugPaintSizeEnabled = false;
+  } catch (e) {
+    debugPrint("Service Init Error: $e");
+  }
 }
 
 class MyApp extends StatelessWidget {
