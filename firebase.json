@@ -23,20 +23,34 @@
     }
   },
   "functions": [
-  {
-    "source": "shadowcv1",
-    "codebase": "shadowcv1",
-    "disallowLegacyRuntimeConfig": true,
+    {
+      "source": "shadowcv1",
+      "codebase": "shadowcv1",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "build/web",
     "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "*.local"
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
     ],
-    "predeploy": [
-      "npm --prefix \"$RESOURCE_DIR\" run build"
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ]
   }
-]
 }

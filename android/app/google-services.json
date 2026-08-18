@@ -39,10 +39,46 @@
               "client_type": 3
             },
             {
-              "client_id": "151340523557-ccp2mtrkoaf4uii2mvt0ghom9p2kc6md.apps.googleusercontent.com",
+              "client_id": "151340523557-bgq659frutdmg2psb4l8e22i36qqkqah.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.shadowcv"
+                "bundle_id": "com.example.shadowcvClean"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:151340523557:android:fa6ee822a6a9be4a8ddfcc",
+        "android_client_info": {
+          "package_name": "com.example.shadowcv_clean"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "151340523557-3utkat6v3iqnl1hno9ukqvcm2upcnbmu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJyB7fZ8Y7s4kCr09IH_U7ABwQthzh9_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "151340523557-3utkat6v3iqnl1hno9ukqvcm2upcnbmu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "151340523557-bgq659frutdmg2psb4l8e22i36qqkqah.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.shadowcvClean"
               }
             }
           ]
@@ -83,10 +119,10 @@
               "client_type": 3
             },
             {
-              "client_id": "151340523557-ccp2mtrkoaf4uii2mvt0ghom9p2kc6md.apps.googleusercontent.com",
+              "client_id": "151340523557-bgq659frutdmg2psb4l8e22i36qqkqah.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.shadowcv"
+                "bundle_id": "com.example.shadowcvClean"
               }
             }
           ]

@@ -365,6 +365,9 @@ SizedBox(
     final whyAsked = question['whyAsked'] ?? '';
     final exampleAnswer = question['exampleAnswer'] ?? '';
     final proTip = question['proTip'] ?? '';
+    final theme = question['theme'] ?? '';
+    final hook = question['interviewerHook'] ?? '';
+    
     final isExpanded = _expandedQuestions.contains(index);
     final color = _getCategoryColor(category);
     final icon = _getCategoryIcon(category);
@@ -430,9 +433,10 @@ SizedBox(
                         children: [
                           Row(
                             children: [
-                              Icon(icon, color: color, size: 12),
+                              Icon(icon, color: color, size: 7),
                               const SizedBox(width: 4),
                               Text(
+                                (theme.isNotEmpty ? '$theme • ' : '').toUpperCase() +
                                 AppTranslation.t(category).toUpperCase(),
                                 style: TextStyle(
                                   color: color,
@@ -445,6 +449,19 @@ SizedBox(
                             ],
                           ),
                           const SizedBox(height: 6),
+                          if (hook.isNotEmpty) 
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                hook,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.4),
+                                  fontSize: 12,
+                                  fontFamily: 'Boldo',
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
                           Text(
                             questionText,
                             style: const TextStyle(

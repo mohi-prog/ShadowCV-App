@@ -1,3 +1,6 @@
+
+
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -40,7 +43,10 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic);
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOutCubic,
+    );
     _fadeController.forward();
   }
 
@@ -67,7 +73,10 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
         ),
         title: Text(
           AppTranslation.t('Fill details'),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: TextField(
           controller: controller,
@@ -87,15 +96,23 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppTranslation.t('Cancel'), style: const TextStyle(color: Colors.white60)),
+            child: Text(
+              AppTranslation.t('Cancel'),
+              style: const TextStyle(color: Colors.white60),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurpleAccent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => Navigator.pop(context, controller.text),
-            child: Text(AppTranslation.t('Save'), style: const TextStyle(color: Colors.white)),
+            child: Text(
+              AppTranslation.t('Save'),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -117,7 +134,10 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: const Color(0xFF1E1E1E),
-          title: Text(AppTranslation.t('Missing information'), style: const TextStyle(color: Colors.white)),
+          title: Text(
+            AppTranslation.t('Missing information'),
+            style: const TextStyle(color: Colors.white),
+          ),
           content: Text(
             AppTranslation.t('You still have placeholders. Export anyway?'),
             style: const TextStyle(color: Colors.white70),
@@ -125,11 +145,17 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(AppTranslation.t('Back'), style: const TextStyle(color: Colors.white60)),
+              child: Text(
+                AppTranslation.t('Back'),
+                style: const TextStyle(color: Colors.white60),
+              ),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text(AppTranslation.t('Export'), style: const TextStyle(color: Colors.orangeAccent)),
+              child: Text(
+                AppTranslation.t('Export'),
+                style: const TextStyle(color: Colors.orangeAccent),
+              ),
             ),
           ],
         ),
@@ -143,7 +169,10 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
       await PdfExportService.exportCV(_editableText);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppTranslation.t('PDF Error')}: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: Text('${AppTranslation.t('PDF Error')}: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isExporting = false);
@@ -178,7 +207,7 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.deepPurpleAccent.withOpacity(0.15),
-                // Für den Glow-Effekt müsstest du idealerweise ImageFilter nutzen, 
+                // Für den Glow-Effekt müsstest du idealerweise ImageFilter nutzen,
                 // aber so bleibt es performant
               ),
             ),
@@ -201,8 +230,8 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
                         color: const Color(0xFF161616),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: _isEditMode 
-                              ? Colors.deepPurpleAccent.withOpacity(0.8) 
+                          color: _isEditMode
+                              ? Colors.deepPurpleAccent.withOpacity(0.8)
                               : Colors.white.withOpacity(0.05),
                           width: 1.5,
                         ),
@@ -218,9 +247,16 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Extra Padding unten für Floating Bar
+                          padding: const EdgeInsets.fromLTRB(
+                            20,
+                            20,
+                            20,
+                            100,
+                          ), // Extra Padding unten für Floating Bar
                           physics: const BouncingScrollPhysics(),
-                          child: _buildFormattedCV(_showAfter ? _editableText : widget.originalText),
+                          child: _buildFormattedCV(
+                            _showAfter ? _editableText : widget.originalText,
+                          ),
                         ),
                       ),
                     ),
@@ -248,12 +284,20 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.white,
+              size: 20,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
           Text(
             AppTranslation.t('Rewritten CV'),
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           IconButton(
             icon: AnimatedSwitcher(
@@ -274,7 +318,7 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
                 _isEditMode = !_isEditMode;
               });
             },
-          )
+          ),
         ],
       ),
     );
@@ -291,7 +335,10 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
       child: Row(
         children: [
           _toggleButton(AppTranslation.t('Original'), !_showAfter, () {
-            setState(() { _showAfter = false; _isEditMode = false; });
+            setState(() {
+              _showAfter = false;
+              _isEditMode = false;
+            });
           }),
           _toggleButton(AppTranslation.t('Optimized'), _showAfter, () {
             setState(() => _showAfter = true);
@@ -312,9 +359,15 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
           decoration: BoxDecoration(
             color: active ? Colors.deepPurpleAccent : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
-            boxShadow: active ? [
-              BoxShadow(color: Colors.deepPurpleAccent.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 2))
-            ] : [],
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: Colors.deepPurpleAccent.withOpacity(0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
           ),
           child: Center(
             child: Text(
@@ -346,7 +399,11 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
           Expanded(
             child: Text(
               AppTranslation.t('Tap placeholders to fill them'),
-              style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.w600, fontSize: 13),
+              style: const TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
             ),
           ),
         ],
@@ -358,7 +415,11 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
     if (!_showAfter) {
       return Text(
         widget.originalText,
-        style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 15, height: 1.6),
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontSize: 15,
+          height: 1.6,
+        ),
       );
     }
     if (_isEditMode) {
@@ -390,38 +451,57 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
     int lastEnd = 0;
 
     for (final match in regex.allMatches(line)) {
-      if (match.start > lastEnd) spans.add(TextSpan(text: line.substring(lastEnd, match.start)));
+      if (match.start > lastEnd)
+        spans.add(TextSpan(text: line.substring(lastEnd, match.start)));
       final matchText = match.group(0)!;
 
       if (matchText.startsWith('**')) {
-        spans.add(TextSpan(
-          text: matchText.replaceAll('**', ''),
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ));
-      } else {
-        spans.add(WidgetSpan(
-          alignment: PlaceholderAlignment.middle,
-          child: GestureDetector(
-            onTap: () => _editPlaceholder(matchText),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.orangeAccent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.orangeAccent.withOpacity(0.5)),
-              ),
-              child: Text(matchText, style: const TextStyle(color: Colors.orangeAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+        spans.add(
+          TextSpan(
+            text: matchText.replaceAll('**', ''),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
-        ));
+        );
+      } else {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: GestureDetector(
+              onTap: () => _editPlaceholder(matchText),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: Colors.orangeAccent.withOpacity(0.5),
+                  ),
+                ),
+                child: Text(
+                  matchText,
+                  style: const TextStyle(
+                    color: Colors.orangeAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
       }
       lastEnd = match.end;
     }
-    if (lastEnd < line.length) spans.add(TextSpan(text: line.substring(lastEnd)));
+    if (lastEnd < line.length)
+      spans.add(TextSpan(text: line.substring(lastEnd)));
 
     // Überprüfe, ob es ein Bullet Point ist, um ihn einzurücken
-    bool isBullet = line.startsWith('-') || line.startsWith('•') || line.startsWith('*');
+    bool isBullet =
+        line.startsWith('-') || line.startsWith('•') || line.startsWith('*');
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,12 +509,20 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
         if (isBullet)
           Padding(
             padding: const EdgeInsets.only(top: 8, right: 8, left: 4),
-            child: Icon(Icons.circle, size: 6, color: Colors.deepPurpleAccent.shade200),
+            child: Icon(
+              Icons.circle,
+              size: 6,
+              color: Colors.deepPurpleAccent.shade200,
+            ),
           ),
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15, height: 1.6),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.9),
+                fontSize: 15,
+                height: 1.6,
+              ),
               children: spans,
             ),
           ),
@@ -461,11 +549,16 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
                 child: OutlinedButton.icon(
                   onPressed: _copyText,
                   icon: const Icon(Icons.copy, color: Colors.white, size: 18),
-                  label: Text(AppTranslation.t('Copy'), style: const TextStyle(color: Colors.white)),
+                  label: Text(
+                    AppTranslation.t('Copy'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: Colors.white24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
               ),
@@ -473,14 +566,33 @@ class _RewriteResultScreenState extends State<RewriteResultScreen>
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _isExporting ? null : _exportPDF,
-                  icon: _isExporting 
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.picture_as_pdf, color: Colors.white, size: 18),
-                  label: Text(AppTranslation.t('Export'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  icon: _isExporting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.picture_as_pdf,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                  label: Text(
+                    AppTranslation.t('Export'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepPurpleAccent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     elevation: 5,
                     shadowColor: Colors.deepPurpleAccent.withOpacity(0.5),
                   ),
