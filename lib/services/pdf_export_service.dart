@@ -46,49 +46,46 @@ class PdfExportService {
     margin: const pw.EdgeInsets.all(0),
     footer: (ctx) => _buildFooter(ctx, copilot),
     build: (pw.Context ctx) {
-      // 1. Hier definieren wir die Liste namens 'widgets'
       final widgets = <pw.Widget>[];
 
-      // 2. Den Header hinzufügen
+      // Header
       widgets.add(_buildHeader(title, dateString));
 
-      // 3. Den Content mit Padding hinzufügen
-      // Wir erstellen eine interne Liste für die Zeilen, damit wir das Seiten-Padding steuern können
-      final List<pw.Widget> contentRows = [];
-
+      // Jede Zeile als EINZELNES Widget hinzufügen – so kann MultiPage
+      // sauber paginieren, ohne in die TooManyPagesException zu laufen.
       for (int i = 0; i < lines.length; i++) {
         final line = lines[i].trim();
-        if (line.isEmpty) continue;
+        if (line.isEmpty) {
+          widgets.add(pw.SizedBox(height: 4));
+          continue;
+        }
 
         if (_isHeading(line)) {
-          contentRows.add(
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              mainAxisSize: pw.MainAxisSize.min,
-              children: [
-                _buildHeadingWidget(line),
-                if (i + 1 < lines.length) _buildAutoLine(lines[i + 1]),
-              ],
+          widgets.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(left: 40, right: 40, top: 20),
+              child: _buildHeadingWidget(line),
             ),
           );
-          i++; // Überspringe die nächste Zeile, da sie im Block ist
+          if (i + 1 < lines.length && lines[i + 1].trim().isNotEmpty) {
+            widgets.add(
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 40),
+                child: _buildAutoLine(lines[i + 1]),
+              ),
+            );
+            i++; // nächste Zeile bereits verarbeitet
+          }
         } else {
-          contentRows.add(_buildAutoLine(line));
+          widgets.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 40),
+              child: _buildAutoLine(line),
+            ),
+          );
         }
       }
 
-      // 4. Jetzt packen wir alle Inhaltszeilen mit Abstand zum Rand in die Hauptliste
-      widgets.add(
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: contentRows,
-          ),
-        ),
-      );
-
-      // 5. Hier geben wir 'widgets' zurück - der Name MUSS mit Zeile 1 übereinstimmen
       return widgets;
     },
   ),
